@@ -1,0 +1,151 @@
+<Window x:Class="BeeXCleaner.Views.ResidualWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="清理残留"
+        Height="600" Width="900"
+        MinHeight="440" MinWidth="720"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource WindowBg}"
+        FontFamily="Microsoft YaHei UI, Segoe UI">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 标题信息 -->
+        <StackPanel Grid.Row="0" Margin="16,14,16,6">
+            <TextBlock x:Name="ScanInfo" Text="正在扫描残留…" FontSize="15" FontWeight="SemiBold"/>
+            <TextBlock x:Name="SubInfo" Margin="0,4,0,0" Foreground="{StaticResource TextSecondary}"
+                       TextWrapping="Wrap"
+                       Text="以下为疑似残留项。高置信项默认已勾选；低置信 / 高风险项默认不勾选，请核对后再清理——勾选项将被永久删除。"/>
+        </StackPanel>
+
+        <!-- 警告条 -->
+        <Border Grid.Row="1" Margin="16,4,16,8" CornerRadius="4" Padding="10,8"
+                Background="#FFEAF3FF" BorderBrush="#FF9DC3F0" BorderThickness="1">
+            <TextBlock TextWrapping="Wrap" Foreground="#FF1A4E8A"
+                       Text="💾 清理注册表前会自动导出 .reg 备份到「工具箱 → 备份恢复」。匹配基于程序名与发行商，可能存在误报，请确认无关键数据后再执行。"/>
+        </Border>
+
+        <!-- 扫描操作条 -->
+        <Border Grid.Row="2" Margin="16,0,16,8" Padding="0">
+            <StackPanel Orientation="Horizontal">
+                <Button Content="🔍 深度扫描" Style="{StaticResource GhostButton}" Margin="0,0,8,0"
+                        Click="OnDeepScan"
+                        ToolTip="扩大名称匹配范围，低置信项默认不勾选"/>
+                <Button Content="＋ 添加目录…" Style="{StaticResource GhostButton}" Margin="0,0,8,0"
+                        Click="OnAddFolder"/>
+                <Button Content="＋ 添加注册表项…" Style="{StaticResource GhostButton}" Margin="0,0,8,0"
+                        Click="OnAddRegistry"/>
+                <Button Content="导出清单" Style="{StaticResource GhostButton}" Margin="0,0,8,0"
+                        Click="OnExportList"/>
+                <TextBlock x:Name="DeepHint" VerticalAlignment="Center" Margin="4,0,0,0"
+                           Foreground="{StaticResource TextSecondary}" Text="没找到？试试深度扫描"/>
+            </StackPanel>
+        </Border>
+
+        <!-- 残留列表 -->
+        <DataGrid x:Name="ResidualGrid" Grid.Row="3" Margin="16,0,16,0"
+                  AutoGenerateColumns="False" IsReadOnly="False"
+                  CanUserAddRows="False" CanUserDeleteRows="False"
+                  HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                  RowHeight="28" Background="White"
+                  BorderBrush="{StaticResource BorderColor}" BorderThickness="1"
+                  HorizontalGridLinesBrush="#FFF0F1F3">
+            <DataGrid.Resources>
+                <Style TargetType="DataGridColumnHeader">
+                    <Setter Property="Background" Value="{StaticResource HeaderBg}"/>
+                    <Setter Property="Padding" Value="8,6"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource BorderColor}"/>
+                    <Setter Property="BorderThickness" Value="0,0,1,1"/>
+                    <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                </Style>
+            </DataGrid.Resources>
+            <DataGrid.Columns>
+                <DataGridTemplateColumn Width="40" CanUserResize="False">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <CheckBox HorizontalAlignment="Center"
+                                      IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Header="类型" Binding="{Binding TypeDisplay}" Width="64" IsReadOnly="True"/>
+                <DataGridTemplateColumn Header="风险" Width="64">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding RiskDisplay}" VerticalAlignment="Center" Margin="4,0" FontWeight="SemiBold">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding RiskDisplay}" Value="需确认">
+                                                <Setter Property="Foreground" Value="{StaticResource WarningBrush}"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding RiskDisplay}" Value="高风险">
+                                                <Setter Property="Foreground" Value="{StaticResource CriticalBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Header="置信度" Binding="{Binding ConfidenceDisplay}" Width="60" IsReadOnly="True"/>
+                <DataGridTextColumn Header="路径" Binding="{Binding Path}" Width="*" IsReadOnly="True"/>
+                <DataGridTextColumn Header="大小" Binding="{Binding SizeDisplay}" Width="82" IsReadOnly="True"/>
+                <DataGridTextColumn Header="匹配原因" Binding="{Binding MatchReason}" Width="180" IsReadOnly="True"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- 底部操作 -->
+        <Border Grid.Row="4" Background="{StaticResource ToolbarBg}"
+                BorderBrush="{StaticResource BorderColor}" BorderThickness="0,1,0,0" Padding="16,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="0" Content="全选" Style="{StaticResource GhostButton}"
+                        Click="OnSelectAll" Margin="0,0,8,0"/>
+                <Button Grid.Column="1" Content="全不选" Style="{StaticResource GhostButton}"
+                        Click="OnSelectNone"/>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="14,0" VerticalAlignment="Center">
+                    <CheckBox x:Name="SecureErase" VerticalAlignment="Center" Margin="0,0,16,0"
+                              Content="安全擦除（覆盖字节·防恢复）"
+                              ToolTip="删除前用随机字节覆盖文件内容并写盘，使数据无法被恢复工具还原（会更慢）"/>
+                    <CheckBox x:Name="KillProcesses" VerticalAlignment="Center" Margin="0,0,16,0"
+                              Content="结束占用进程"
+                              ToolTip="勾选后：遇到被占用的文件会尝试结束占用它的非系统进程再删除。可能关闭正在运行的程序，请先保存数据。"/>
+                    <TextBlock x:Name="StatusInfo" VerticalAlignment="Center"
+                               Foreground="{StaticResource TextSecondary}"/>
+                </StackPanel>
+                <Button Grid.Column="3" Content="清理选中项" Style="{StaticResource DangerButton}"
+                        Click="OnClean" Margin="0,0,8,0"/>
+                <Button Grid.Column="4" Content="关闭" Style="{StaticResource GhostButton}"
+                        Click="OnClose"/>
+            </Grid>
+        </Border>
+
+        <!-- 忙碌遮罩 -->
+        <Border x:Name="BusyOverlay" Grid.Row="3" Background="#B0FFFFFF"
+                Visibility="Collapsed">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <ProgressBar IsIndeterminate="True" Width="200" Height="6"
+                             Foreground="{StaticResource AccentBrush}"/>
+                <TextBlock x:Name="BusyText" Text="正在扫描残留…" Margin="0,12,0,0"
+                           HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

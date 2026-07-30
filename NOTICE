@@ -1,0 +1,114 @@
+BeeX DeskNest
+Copyright 2026 beex-labs
+
+This product is licensed under the Apache License, Version 2.0 (see the LICENSE
+file). This NOTICE file is provided for informational purposes only and does not
+modify the License.
+
+================================================================================
+Third-party components
+================================================================================
+
+The main application (BeeX DeskNest.exe) links against the following packages:
+
+  * NAudio 2.2.1
+      License: MIT
+      Copyright (c) Mark Heath and contributors
+      https://github.com/naudio/NAudio
+
+  * CommunityToolkit.Mvvm 8.2.2
+      License: MIT
+      Copyright (c) .NET Foundation and Contributors
+      https://github.com/CommunityToolkit/dotnet
+
+  * Microsoft.Toolkit.Uwp.Notifications 7.1.3
+      License: MIT
+      Copyright (c) .NET Foundation and Contributors
+      https://github.com/CommunityToolkit/WindowsCommunityToolkit
+
+  * Markdig 0.37.0
+      License: BSD-2-Clause
+      Copyright (c) Alexandre Mutel
+      https://github.com/xoofx/markdig
+
+  * Microsoft.Web.WebView2 1.0.2792.45
+      License: Microsoft Software License Terms (proprietary, free to
+      redistribute as a runtime component)
+      Copyright (c) Microsoft Corporation
+      https://developer.microsoft.com/microsoft-edge/webview2/
+
+================================================================================
+Bundled icon assets
+================================================================================
+
+  * Tabler Icons v3.45.0
+      License: MIT
+      Copyright (c) 2020-2024 Paweł Kuna
+      https://github.com/tabler/tabler-icons
+      Used as the application's UI icons (Assets/Icons/*.svg and
+      Write/Assets/icons/tabler/*.svg).
+
+================================================================================
+BeexWrite web editor bundle (Write/wwwroot)
+================================================================================
+
+The Markdown editor is a pre-built web bundle embedded into the application and
+rendered via WebView2. It incorporates the following third-party open-source
+libraries (all permissive licenses); refer to each project for full terms:
+
+  * KaTeX — MIT — https://github.com/KaTeX/KaTeX
+  * Mermaid — MIT — https://github.com/mermaid-js/mermaid
+  * CodeMirror (editor + language modes) — MIT — https://github.com/codemirror
+  * Cytoscape.js — MIT — https://github.com/cytoscape/cytoscape.js
+  * dagre — MIT — https://github.com/dagrejs/dagre
+  * D3 — ISC / BSD-3-Clause — https://github.com/d3
+  * js-yaml — MIT — https://github.com/nodeca/js-yaml
+  * viz.js — MIT (bundles Graphviz, EPL-1.0) — https://github.com/mdaines/viz-js
+
+This list covers the major libraries identified in the build output; the bundle
+may include additional transitive dependencies under similar permissive licenses.
+
+================================================================================
+OCR component (separate process — NOT linked into the main application)
+================================================================================
+
+Optical character recognition, formula and table recognition are provided by a
+standalone sidecar executable (BeeX_OCR.exe / BeeX_Formula.exe) that is built
+from a separate project and installed on demand at runtime. The main application
+communicates with it only over an inter-process line protocol (stdin/stdout) and
+does NOT reference or link any of the packages below. They are listed here for
+transparency; their terms apply only to the separately distributed OCR sidecar.
+
+  * Sdcb.PaddleOCR / Sdcb.PaddleInference 3.3.x (PaddleSharp)
+      License: Apache-2.0
+      Copyright (c) sdcb (Zhou Jie) and contributors
+      https://github.com/sdcb/PaddleSharp
+
+  * OpenCvSharp4 (runtime.win)
+      License: Apache-2.0
+      Copyright (c) shimat and contributors
+      https://github.com/shimat/opencvsharp
+
+  * PaddlePaddle / PaddleOCR (upstream inference engine and models)
+      License: Apache-2.0
+      Copyright (c) PaddlePaddle Authors (Baidu)
+      https://github.com/PaddlePaddle/PaddleOCR
+
+================================================================================
+Test-only dependencies (not distributed with the application)
+================================================================================
+
+  * xunit — Apache-2.0
+  * xunit.runner.visualstudio — Apache-2.0
+  * Moq — BSD-3-Clause
+  * FluentAssertions 6.x — Apache-2.0
+  * Microsoft.NET.Test.Sdk — MIT
+
+================================================================================
+Runtime-provisioned components (downloaded on demand, not shipped in the repo)
+================================================================================
+
+  * FFmpeg — used for screen recording / clip export; downloaded on demand by
+    FfmpegInstallerService. FFmpeg is licensed under the LGPL/GPL depending on
+    build; BeeX DeskNest invokes it as an external executable and does not link
+    against it.

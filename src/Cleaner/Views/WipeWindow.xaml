@@ -1,0 +1,81 @@
+<Window x:Class="BeeXCleaner.Views.WipeWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="空间深度擦除 · 使已删除文件不可恢复"
+        Height="560" Width="820"
+        MinHeight="420" MinWidth="640"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource WindowBg}"
+        FontFamily="Microsoft YaHei UI, Segoe UI">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="16,14,16,6">
+            <TextBlock Text="空间深度擦除（清除已删除文件的可恢复痕迹）" FontSize="15" FontWeight="SemiBold"/>
+            <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap"
+                       Text="普通删除只释放空间、不抹除数据，之前删掉的文件在被覆盖前仍可能被恢复工具还原。此功能用随机数据覆盖所选磁盘的“可用空间”，把这些残留数据字节彻底摧毁，使其无法再被恢复。"/>
+        </StackPanel>
+
+        <Border Grid.Row="1" Margin="16,4,16,8" CornerRadius="4" Padding="10,8"
+                Background="#FFFFF4E5" BorderBrush="#FFF0C36D" BorderThickness="1">
+            <TextBlock TextWrapping="Wrap" Foreground="#FF8A5A00"
+                       Text="⚠ 擦除会临时占满该磁盘可用空间（保留 1GB 余量），过程可能很慢（取决于可用空间大小），完成后自动清除填充文件。只影响“已删除数据”，不动现有文件。SSD 因 TRIM/磨损均衡，效果可能有限。网络盘/NAS 不可选。"/>
+        </Border>
+
+        <DataGrid x:Name="DriveGrid" Grid.Row="2" Margin="16,0,16,0"
+                  AutoGenerateColumns="False" IsReadOnly="True"
+                  CanUserAddRows="False" CanUserDeleteRows="False"
+                  HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                  SelectionMode="Single" RowHeight="30" Background="White"
+                  BorderBrush="{StaticResource BorderColor}" BorderThickness="1"
+                  HorizontalGridLinesBrush="#FFF0F1F3">
+            <DataGrid.Resources>
+                <Style TargetType="DataGridColumnHeader">
+                    <Setter Property="Background" Value="{StaticResource HeaderBg}"/>
+                    <Setter Property="Padding" Value="8,6"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource BorderColor}"/>
+                    <Setter Property="BorderThickness" Value="0,0,1,1"/>
+                    <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                </Style>
+            </DataGrid.Resources>
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="磁盘" Binding="{Binding Display}" Width="*"/>
+                <DataGridTextColumn Header="类型" Binding="{Binding TypeText}" Width="100"/>
+                <DataGridTextColumn Header="总容量" Binding="{Binding TotalText}" Width="120"/>
+                <DataGridTextColumn Header="可用空间" Binding="{Binding FreeText}" Width="120"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- 进度 -->
+        <Grid Grid.Row="3" Margin="16,10,16,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <ProgressBar x:Name="Bar" Grid.Column="0" Height="10" Minimum="0" Maximum="1" Value="0"
+                         Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center"/>
+            <TextBlock x:Name="ProgText" Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center"
+                       Foreground="{StaticResource TextSecondary}" Text="就绪"/>
+        </Grid>
+
+        <!-- 底部操作 -->
+        <Border Grid.Row="4" Background="{StaticResource ToolbarBg}"
+                BorderBrush="{StaticResource BorderColor}" BorderThickness="0,1,0,0" Padding="16,10" Margin="0,10,0,0">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="StartBtn" Content="开始擦除选中磁盘" Style="{StaticResource DangerButton}"
+                        Click="OnStart" Margin="0,0,8,0"/>
+                <Button x:Name="CancelBtn" Content="取消" Style="{StaticResource GhostButton}"
+                        Click="OnCancel" IsEnabled="False" Margin="0,0,8,0"/>
+                <Button Content="关闭" Style="{StaticResource GhostButton}" Click="OnClose"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

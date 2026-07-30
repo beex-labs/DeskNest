@@ -1,0 +1,37 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Dark theme palette. Mirrors the keys defined in Light.xaml. -->
+    <SolidColorBrush x:Key="Bx.WindowBackground" Color="#1E1F22" />
+    <SolidColorBrush x:Key="Bx.Chrome" Color="#26282C" />
+    <SolidColorBrush x:Key="Bx.Sidebar" Color="#222327" />
+    <SolidColorBrush x:Key="Bx.Text" Color="#E6E6E6" />
+    <SolidColorBrush x:Key="Bx.Muted" Color="#9AA0A6" />
+    <SolidColorBrush x:Key="Bx.Border" Color="#3A3D41" />
+    <SolidColorBrush x:Key="Bx.Accent" Color="#F5A623" />
+    <SolidColorBrush x:Key="Bx.Hover" Color="#33363B" />
+    <SolidColorBrush x:Key="Bx.Selection" Color="#4A3A1E" />
+    <Color x:Key="Bx.AccentColorValue">#F5A623</Color>
+
+    <!-- Override system menu popup colours for dark theme. -->
+    <SolidColorBrush x:Key="{x:Static SystemColors.MenuBrushKey}" Color="#26282C" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.MenuBarBrushKey}" Color="#26282C" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.MenuTextBrushKey}" Color="#E6E6E6" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.MenuHighlightBrushKey}" Color="#33363B" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#F5A623" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#E6E6E6" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#26282C" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#1E1F22" />
+
+    <!-- Aero2 theme-specific menu keys (used by default ControlTemplate on Windows 10/11) -->
+    <SolidColorBrush x:Key="Menu.Static.Background" Color="#26282C" />
+    <SolidColorBrush x:Key="Menu.Static.Border" Color="#3A3D41" />
+    <SolidColorBrush x:Key="Menu.Static.Foreground" Color="#E6E6E6" />
+    <SolidColorBrush x:Key="MenuItem.SubMenu.Background" Color="#26282C" />
+    <SolidColorBrush x:Key="MenuItem.SubMenu.Border" Color="#3A3D41" />
+    <SolidColorBrush x:Key="MenuItem.Selected.Background" Color="#33363B" />
+    <SolidColorBrush x:Key="MenuItem.Selected.Border" Color="#3A3D41" />
+    <SolidColorBrush x:Key="MenuItem.Highlight.Background" Color="#33363B" />
+    <SolidColorBrush x:Key="MenuItem.Highlight.Border" Color="#3A3D41" />
+    <SolidColorBrush x:Key="MenuItem.Highlight.Disabled.Background" Color="#2A2D31" />
+    <SolidColorBrush x:Key="MenuItem.Highlight.Disabled.Border" Color="#3A3D41" />
+</ResourceDictionary>

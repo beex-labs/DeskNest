@@ -1,0 +1,219 @@
+<Window x:Class="BeeXCleaner.CleanerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="BeeX 清理 · 系统清理与卸载"
+        Icon="pack://application:,,,/Assets/BeeX.ico"
+        Height="640" Width="1000"
+        MinHeight="440" MinWidth="760"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource WindowBg}"
+        FontFamily="Microsoft YaHei UI, Segoe UI">
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ========== 工具栏 ========== -->
+        <Border Grid.Row="0" Background="{StaticResource ToolbarBg}"
+                BorderBrush="{StaticResource BorderColor}" BorderThickness="0,1,0,1" Padding="10,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <Image Width="22" Height="22" Margin="2,0,12,0" VerticalAlignment="Center"
+                           Source="pack://application:,,,/Assets/BeeX.png" RenderOptions.BitmapScalingMode="HighQuality"/>
+                    <Button Content="卸载软件" Style="{StaticResource FlatButton}"
+                            Command="{Binding UninstallCommand}" Margin="0,0,8,0"/>
+                    <Button Content="批量卸载" Style="{StaticResource DangerButton}"
+                            Command="{Binding BatchUninstallCommand}" Margin="0,0,8,0"/>
+                    <Button Content="清理残留" Style="{StaticResource GhostButton}"
+                            Command="{Binding CleanResidualsCommand}" Margin="0,0,8,0"/>
+                    <Button Content="强制删除" Style="{StaticResource GhostButton}"
+                            Command="{Binding ForceRemoveCommand}" Margin="0,0,8,0"/>
+                    <Button x:Name="ToolboxButton" Content="工具箱 ▾" Style="{StaticResource GhostButton}"
+                            Margin="0,0,8,0" Click="OnToolboxClick">
+                        <Button.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="遗留扫描（清理已卸载软件残留）" Command="{Binding ScanOrphansCommand}"/>
+                                <MenuItem Header="快速删除文件 / 文件夹…" Command="{Binding QuickDeleteCommand}"/>
+                                <MenuItem Header="空间深度擦除…" Command="{Binding WipeCommand}"/>
+                                <Separator/>
+                                <MenuItem Header="清理历史…" Command="{Binding CleanupHistoryCommand}"/>
+                                <MenuItem Header="备份恢复…" Command="{Binding BackupRestoreCommand}"/>
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
+                    <Button Content="刷新" Style="{StaticResource GhostButton}"
+                            Command="{Binding RefreshCommand}" Margin="0,0,8,0"/>
+                </StackPanel>
+
+                <!-- 搜索框 -->
+                <Border Grid.Column="1" Width="240" CornerRadius="4" Background="White"
+                        BorderBrush="{StaticResource BorderColor}" BorderThickness="1" Padding="8,0">
+                    <Grid>
+                        <TextBox x:Name="SearchBox" VerticalAlignment="Center" BorderThickness="0"
+                                 Background="Transparent" VerticalContentAlignment="Center" Height="26"
+                                 Padding="0,4,0,0" Foreground="{StaticResource TextPrimary}" CaretBrush="{StaticResource TextPrimary}"
+                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=150}"/>
+                        <TextBlock Text="搜索名称 / 发行商…" Foreground="{StaticResource TextSecondary}"
+                                   VerticalAlignment="Center" IsHitTestVisible="False" Margin="1,0,0,0">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value="">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- ========== 程序列表 ========== -->
+        <DataGrid x:Name="Grid" Grid.Row="1" Margin="10"
+                  AutoGenerateColumns="False" IsReadOnly="True"
+                  CanUserAddRows="False" CanUserDeleteRows="False"
+                  HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                  SelectionMode="Single" RowHeight="30"
+                  Background="White" BorderBrush="{StaticResource BorderColor}" BorderThickness="1"
+                  HorizontalGridLinesBrush="#FFF0F1F3"
+                  ItemsSource="{Binding Programs}"
+                  SelectedItem="{Binding SelectedProgram}"
+                  MouseDoubleClick="OnGridDoubleClick"
+                  PreviewMouseRightButtonDown="OnGridRightClick">
+            <DataGrid.Resources>
+                <Style TargetType="DataGridColumnHeader">
+                    <Setter Property="Background" Value="{StaticResource HeaderBg}"/>
+                    <Setter Property="Padding" Value="8,6"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource BorderColor}"/>
+                    <Setter Property="BorderThickness" Value="0,0,1,1"/>
+                    <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                </Style>
+            </DataGrid.Resources>
+            <DataGrid.RowStyle>
+                <Style TargetType="DataGridRow">
+                    <Style.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Background" Value="{StaticResource RowHover}"/>
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Background" Value="{StaticResource RowSelected}"/>
+                            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </DataGrid.RowStyle>
+
+            <DataGrid.Columns>
+                <!-- 勾选列（批量） -->
+                <DataGridTemplateColumn Width="40" CanUserResize="False">
+                    <DataGridTemplateColumn.HeaderTemplate>
+                        <DataTemplate>
+                            <!-- 三态回显：全选=勾/全不选=空/部分=半选；点击仍由事件驱动切换 -->
+                            <CheckBox Click="OnHeaderCheckClick" ToolTip="全选 / 全不选"
+                                      IsChecked="{Binding DataContext.AllCheckedState, RelativeSource={RelativeSource AncestorType=DataGrid}, Mode=OneWay}"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.HeaderTemplate>
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <CheckBox HorizontalAlignment="Center"
+                                      IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <DataGridTextColumn Header="名称" Binding="{Binding DisplayName}" Width="2.4*"/>
+                <DataGridTextColumn Header="发行商" Binding="{Binding PublisherDisplay}" Width="1.6*"/>
+                <DataGridTextColumn Header="大小" Binding="{Binding SizeDisplay}" Width="90"/>
+                <DataGridTextColumn Header="安装日期" Binding="{Binding InstallDateDisplay}" Width="100"/>
+                <DataGridTextColumn Header="版本" Binding="{Binding VersionDisplay}" Width="120"/>
+                <DataGridTextColumn Header="架构" Binding="{Binding ArchDisplay}" Width="70"/>
+            </DataGrid.Columns>
+
+            <DataGrid.ContextMenu>
+                <ContextMenu>
+                    <MenuItem Header="卸载" Command="{Binding UninstallCommand}"/>
+                    <MenuItem Header="批量卸载（已勾选）" Command="{Binding BatchUninstallCommand}"/>
+                    <MenuItem Header="强制删除（勾选项/当前项）" Command="{Binding ForceRemoveCommand}"/>
+                    <MenuItem Header="清理残留（勾选项/当前项）" Command="{Binding CleanResidualsCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="打开安装目录" Command="{Binding OpenFolderCommand}"/>
+                    <MenuItem Header="访问官网" Command="{Binding OpenWebsiteCommand}"/>
+                    <MenuItem Header="查看详情…" Command="{Binding DetailsCommand}"/>
+                </ContextMenu>
+            </DataGrid.ContextMenu>
+        </DataGrid>
+
+        <!-- ========== DeepL 翻译 Key 设置（嵌入在列表下方） ========== -->
+        <Border Grid.Row="1" VerticalAlignment="Bottom" Margin="10,0,10,10"
+                Background="{StaticResource WindowBg}" BorderBrush="{StaticResource BorderColor}"
+                BorderThickness="1" CornerRadius="6" Padding="12,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="DeepL API Key：" VerticalAlignment="Center" FontWeight="SemiBold"
+                           Foreground="{StaticResource TextPrimary}" Margin="0,0,8,0"/>
+                <TextBox x:Name="CleanerDeepLKeyBox" Grid.Column="1" Style="{StaticResource CleanerTextBox}"
+                         VerticalContentAlignment="Center" Height="30"
+                         LostFocus="OnDeepLKeyChanged" KeyDown="OnDeepLKeyDown"/>
+                <TextBlock Grid.Column="2" Text="留空使用内置 Key" VerticalAlignment="Center"
+                           Foreground="{StaticResource TextSecondary}" FontSize="12" Margin="8,0,0,0"/>
+            </Grid>
+        </Border>
+
+        <!-- ========== 状态栏 ========== -->
+        <Border Grid.Row="2" Background="{StaticResource ToolbarBg}"
+                BorderBrush="{StaticResource BorderColor}" BorderThickness="0,1,0,0" Padding="10,5">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding StatusText}" VerticalAlignment="Center"
+                           Foreground="{StaticResource TextSecondary}"/>
+                <TextBlock Grid.Column="1" Text="{Binding SelectedCountText}" VerticalAlignment="Center"
+                           Margin="0,0,16,0" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold"/>
+                <TextBlock Grid.Column="2" Text="{Binding CountText}" VerticalAlignment="Center"
+                           Foreground="{StaticResource TextSecondary}"/>
+            </Grid>
+        </Border>
+
+        <!-- ========== 忙碌遮罩（覆盖全窗口，阻止操作期间再次触发）========== -->
+        <Border Grid.Row="0" Grid.RowSpan="3" Background="#66000000"
+                Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}">
+            <Border Background="White" CornerRadius="8" Padding="30,24"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="320"
+                    BorderBrush="{StaticResource BorderColor}" BorderThickness="1">
+                <StackPanel HorizontalAlignment="Center">
+                    <TextBlock Text="请稍候…" FontSize="15" FontWeight="SemiBold"
+                               HorizontalAlignment="Center" Foreground="{StaticResource TextPrimary}"/>
+                    <ProgressBar IsIndeterminate="True" Width="260" Height="6" Margin="0,14,0,0"
+                                 Foreground="{StaticResource AccentBrush}"/>
+                    <TextBlock Text="{Binding BusyText}" Margin="0,12,0,0" TextWrapping="Wrap"
+                               MaxWidth="300" TextAlignment="Center"
+                               HorizontalAlignment="Center" FontSize="13"
+                               Foreground="{StaticResource TextSecondary}"/>
+                </StackPanel>
+            </Border>
+        </Border>
+    </Grid>
+</Window>

@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>BeeX_OCR</AssemblyName>
+    <RootNamespace>BeeX.OCR</RootNamespace>
+    <Company>BeeX</Company>
+    <Product>BeeX OCR</Product>
+    <Description>BeeX OCR screen text extractor</Description>
+    <FileVersion>1.0.0.0</FileVersion>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <ApplicationIcon>Assets\beex_icon_flat_orange.ico</ApplicationIcon>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <!-- CUDA 构建时定义 CUDA_RUNTIME 符号，供 OcrService 条件编译 -->
+    <DefineConstants Condition="'$(PaddleRuntime)' == 'cuda'">$(DefineConstants);CUDA_RUNTIME</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\beex_icon_flat_orange.ico" />
+    <Resource Include="Assets\BeeX.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.11.0.20250507" />
+    <!-- 三选一运行时：默认 MKL（文字 OCR 需 oneDNN 才快）；
+         /p:PaddleRuntime=openblas 发布公式侧车（PP-FormulaNet 在 oneDNN 下必崩）；
+         /p:PaddleRuntime=cuda 发布 GPU 推理侧车（需 NVIDIA GPU + 驱动） -->
+    <PackageReference Include="Sdcb.PaddleInference.runtime.win64.mkl" Version="3.3.1.70" Condition="'$(PaddleRuntime)' != 'openblas' AND '$(PaddleRuntime)' != 'cuda'" />
+    <PackageReference Include="Sdcb.PaddleInference.runtime.win64.openblas" Version="3.3.1.70" Condition="'$(PaddleRuntime)' == 'openblas'" />
+    <!-- CUDA 11.8 + cuDNN 8.9，覆盖 GTX 16xx (SM75) / RTX 30xx (SM86) / RTX 40xx (SM89) -->
+    <PackageReference Include="Sdcb.PaddleInference.runtime.win64.cu118_cudnn89_sm75" Version="3.3.1.70" Condition="'$(PaddleRuntime)' == 'cuda'" />
+    <PackageReference Include="Sdcb.PaddleInference.runtime.win64.cu118_cudnn89_sm89" Version="3.3.1.70" Condition="'$(PaddleRuntime)' == 'cuda'" />
+    <PackageReference Include="Sdcb.PaddleInference.runtime.win64.cu118_cudnn89_sm86" Version="3.3.1.70" Condition="'$(PaddleRuntime)' == 'cuda'" />
+    <PackageReference Include="Sdcb.PaddleOCR" Version="3.3.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- GPU 检测需要 WMI 查询 Win32_VideoController -->
+    <PackageReference Include="System.Management" Version="9.0.6" />
+  </ItemGroup>
+</Project>

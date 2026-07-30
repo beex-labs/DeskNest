@@ -1,0 +1,69 @@
+# ============================================================
+# BeeX DeskNest — .gitignore
+# 覆盖构建产物 / 调试符号 / IDE 配置 / 用户与运行时数据 / 临时文件
+# 说明：应用数据根（截图、录屏、配置、缓存、OCR 组件等）按设计位于
+#       D:\BeeX（或 C:\BeeX）与 %LocalAppData%\BeeX，本就在仓库之外，无需提交。
+# ============================================================
+
+# ---- 构建产物 (bin / obj / out) ----
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+
+# ---- 发布 / 便携版输出 ----
+publish/
+[Pp]ublish/
+*.pubxml.user
+
+# ---- 调试符号 ----
+*.pdb
+*.mdb
+
+# ---- Visual Studio / Rider / IDE ----
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.userprefs
+*.sln.docstates
+*.DotSettings.user
+
+# ---- 测试结果 ----
+[Tt]est[Rr]esults/
+*.trx
+*.coverage
+*.coveragexml
+
+# ---- NuGet ----
+*.nupkg
+*.snupkg
+packages/
+project.lock.json
+project.assets.json
+artifacts/
+
+# ---- 临时文件 / 日志 / 缓存 / 备份 ----
+*.tmp
+*.temp
+*.log
+*.cache
+*.bak
+~$*
+*~
+
+# ---- 操作系统生成文件 ----
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+[Dd]esktop.ini
+$RECYCLE.BIN/
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ---- 本地 / 用户运行时数据（不应提交）----
+# 应用运行时数据位于仓库外的 BeeX 数据根，此处仅拦截偶发落到仓库内的本地文件。
+*.local.json
+secrets.json
+appsettings.*.local.json

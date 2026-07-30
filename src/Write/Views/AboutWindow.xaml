@@ -1,0 +1,26 @@
+<Window x:Class="BeexWrite.Views.AboutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="clr-namespace:BeexWrite.Localization"
+        Title="{Binding AboutTitle, Source={x:Static loc:Strings.Instance}}"
+        Width="380" Height="340"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        WindowStyle="SingleBorderWindow"
+        Background="{DynamicResource Bx.WindowBackground}"
+        Foreground="{DynamicResource Bx.Text}">
+    <StackPanel Margin="28" VerticalAlignment="Center" HorizontalAlignment="Center">
+        <Image Source="pack://application:,,,/Write/Assets/branding/BeeX.png"
+               Width="72" Height="72" HorizontalAlignment="Center" />
+        <TextBlock Text="BeexWrite" FontSize="24" FontWeight="Bold"
+                   HorizontalAlignment="Center" Margin="0,14,0,2" />
+        <TextBlock Text="{Binding AboutDescription, Source={x:Static loc:Strings.Instance}}"
+                   Foreground="{DynamicResource Bx.Muted}" HorizontalAlignment="Center" />
+        <TextBlock Foreground="{DynamicResource Bx.Muted}"
+                   HorizontalAlignment="Center" Margin="0,8,0,0">
+            <Run Text="{Binding AboutVersion, Source={x:Static loc:Strings.Instance}, Mode=OneWay}" /><Run Text=" 0.1.0" />
+        </TextBlock>
+        <Button Content="{Binding BtnClose, Source={x:Static loc:Strings.Instance}}" Width="100" Margin="0,20,0,0"
+                HorizontalAlignment="Center" IsCancel="True" Padding="12,8" />
+    </StackPanel>
+</Window>

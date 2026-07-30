@@ -1,0 +1,54 @@
+<Window x:Class="BeeXCleaner.Views.QuickDeleteWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="快速删除文件 / 文件夹"
+        Height="420" Width="660"
+        MinHeight="380" MinWidth="520"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource WindowBg}"
+        FontFamily="Microsoft YaHei UI, Segoe UI">
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="快速删除文件 / 文件夹" FontSize="15" FontWeight="SemiBold"/>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,12,0,0">
+            <Button Content="选择文件…" Style="{StaticResource GhostButton}" Click="OnPickFile" Margin="0,0,8,0"/>
+            <Button Content="选择文件夹…" Style="{StaticResource GhostButton}" Click="OnPickFolder"/>
+        </StackPanel>
+
+        <Border Grid.Row="2" Margin="0,12,0,0" CornerRadius="4" Padding="10,8"
+                Background="White" BorderBrush="{StaticResource BorderColor}" BorderThickness="1">
+            <TextBlock x:Name="PathText" TextWrapping="Wrap" Foreground="{StaticResource TextSecondary}"
+                       Text="尚未选择。请点击上方按钮选择要删除的文件或文件夹。"/>
+        </Border>
+
+        <TextBlock x:Name="SizeText" Grid.Row="3" Margin="2,8,0,0"
+                   Foreground="{StaticResource TextSecondary}" Text=""/>
+
+        <CheckBox x:Name="SecureErase" Grid.Row="4" Margin="0,14,0,0"
+                  Content="安全擦除（覆盖字节使其不可恢复；删除会明显变慢）"
+                  ToolTip="勾选后：删除前用随机字节覆盖文件内容并写盘，恢复软件也无法还原。数据量越大越慢。"/>
+
+        <Border Grid.Row="5" Margin="0,14,0,0" CornerRadius="4" Padding="10,8" VerticalAlignment="Top"
+                Background="#FFFFF4E5" BorderBrush="#FFF0C36D" BorderThickness="1">
+            <TextBlock TextWrapping="Wrap" Foreground="#FF8A5A00"
+                       Text="⚠ 此操作不可恢复。仅限本机本地磁盘（网络盘 / NAS 禁止）；操作系统关键目录（C:\、Windows、System32、Program Files 等根目录）受硬保护无法删除。被占用/受保护而无法立即删除的部分，将安排在系统重启后由 SYSTEM 删除。"/>
+        </Border>
+
+        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <Button x:Name="DeleteBtn" Content="删除" Style="{StaticResource DangerButton}"
+                    Click="OnDelete" IsEnabled="False" Margin="0,0,8,0"/>
+            <Button Content="取消" Style="{StaticResource GhostButton}" Click="OnClose"/>
+        </StackPanel>
+    </Grid>
+</Window>

@@ -1,0 +1,56 @@
+# EditorConfig — https://editorconfig.org
+# Top-most EditorConfig file for BeeX DeskNest.
+root = true
+
+# ---- Defaults for all files ----
+[*]
+charset = utf-8
+end_of_line = crlf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# ---- C# ----
+[*.cs]
+indent_size = 4
+# Prefer file-scoped namespaces (matches the existing codebase).
+csharp_style_namespace_declarations = file_scoped:suggestion
+# 'this.' is not required.
+dotnet_style_qualification_for_field = false:suggestion
+dotnet_style_qualification_for_property = false:suggestion
+dotnet_style_qualification_for_method = false:suggestion
+dotnet_style_qualification_for_event = false:suggestion
+# Language keywords over BCL type names (int over Int32).
+dotnet_style_predefined_type_for_locals_parameters_members = true:suggestion
+dotnet_style_predefined_type_for_member_access = true:suggestion
+# 'var' usage is left to the author's discretion.
+csharp_style_var_for_built_in_types = false:silent
+csharp_style_var_when_type_is_apparent = true:suggestion
+# Expression-bodied members are common in this codebase.
+csharp_style_expression_bodied_methods = true:silent
+csharp_style_expression_bodied_properties = true:suggestion
+# Modern C# preferences.
+csharp_prefer_braces = false:silent
+csharp_using_directive_placement = outside_namespace:suggestion
+dotnet_sort_system_directives_first = true
+
+# ---- Project / build files ----
+[*.{csproj,props,targets}]
+indent_size = 2
+
+# ---- XAML ----
+[*.xaml]
+indent_size = 4
+
+# ---- Markup / data / config ----
+[*.{xml,manifest,json,yml,yaml}]
+indent_size = 2
+
+# ---- Scripts ----
+[*.ps1]
+indent_size = 4
+
+# ---- Markdown (keep trailing spaces: they encode hard line breaks) ----
+[*.md]
+trim_trailing_whitespace = false

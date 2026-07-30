@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <UseWindowsForms>true</UseWindowsForms>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.*" />
+    <PackageReference Include="xunit" Version="2.*" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.*">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Moq" Version="4.*" />
+    <PackageReference Include="FluentAssertions" Version="6.*" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\src\BeeX.DeskNest.csproj" />
+  </ItemGroup>
+  <!-- OCR 文件被主项目 csproj 通过 <Compile Remove="OCR\**"/> 排除，
+       测试项目需要链接引入 OCR 源码来测试 OcrImagePreprocessor -->
+  <ItemGroup>
+    <Compile Include="..\src\OCR\OcrImagePreprocessor.cs" Link="OCR\OcrImagePreprocessor.cs" />
+    <Compile Include="..\src\OCR\OcrImageCandidate.cs" Link="OCR\OcrImageCandidate.cs" />
+    <Compile Include="..\src\OCR\OcrImageStats.cs" Link="OCR\OcrImageStats.cs" />
+    <Compile Include="..\src\OCR\PaddleModelPaths.cs" Link="OCR\PaddleModelPaths.cs" />
+    <Compile Include="..\src\OCR\GlobalUsings.cs" Link="OCR\GlobalUsings.cs" />
+  </ItemGroup>
+</Project>

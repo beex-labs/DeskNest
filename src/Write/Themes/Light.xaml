@@ -1,0 +1,23 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Light theme palette. Keys mirror Dark.xaml so the whole dictionary can
+         be swapped at runtime by ThemeService; controls bind via DynamicResource. -->
+    <SolidColorBrush x:Key="Bx.WindowBackground" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="Bx.Chrome" Color="#F3F3F3" />
+    <SolidColorBrush x:Key="Bx.Sidebar" Color="#F7F7F8" />
+    <SolidColorBrush x:Key="Bx.Text" Color="#1F2328" />
+    <SolidColorBrush x:Key="Bx.Muted" Color="#6B7280" />
+    <SolidColorBrush x:Key="Bx.Border" Color="#E1E4E8" />
+    <SolidColorBrush x:Key="Bx.Accent" Color="#F5A623" />
+    <SolidColorBrush x:Key="Bx.Hover" Color="#ECECEC" />
+    <SolidColorBrush x:Key="Bx.Selection" Color="#FCE7C2" />
+    <Color x:Key="Bx.AccentColorValue">#F5A623</Color>
+
+    <!-- Override system menu popup colours so WPF MenuItems follow the theme. -->
+    <SolidColorBrush x:Key="{x:Static SystemColors.MenuBrushKey}" Color="#F3F3F3" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.MenuBarBrushKey}" Color="#F3F3F3" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.MenuTextBrushKey}" Color="#1F2328" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.MenuHighlightBrushKey}" Color="#ECECEC" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#F5A623" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#1F2328" />
+</ResourceDictionary>

@@ -1,0 +1,31 @@
+<Window x:Class="BeeX.OCR.CaptureOverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Topmost="True"
+        Background="#66000000"
+        Cursor="Cross"
+        KeyDown="Window_KeyDown"
+        MouseLeftButtonDown="Window_MouseLeftButtonDown"
+        MouseLeftButtonUp="Window_MouseLeftButtonUp"
+        MouseMove="Window_MouseMove">
+    <Canvas x:Name="OverlayCanvas">
+        <TextBlock x:Name="HintText"
+                   Canvas.Left="28"
+                   Canvas.Top="24"
+                   Text="拖动框选要识别的文字区域，按 Esc 取消"
+                   Foreground="White"
+                   Background="#990D1321"
+                   Padding="12,8"
+                   FontFamily="Microsoft YaHei UI"
+                   FontSize="14"/>
+        <Rectangle x:Name="SelectionRectangle"
+                   Visibility="Collapsed"
+                   Stroke="#FF8A00"
+                   StrokeThickness="2"
+                   Fill="#22FF8A00"/>
+    </Canvas>
+</Window>
