@@ -339,6 +339,8 @@ public sealed partial class ScreenCaptureOverlay : Window
             }
             else
             {
+                // 畫完立即顯示編輯把手（矩形/圓形四角、線條/箭頭端點），支持二次調整
+                SelectAnnotationForResize(activeAnnotation);
                 ShowToolbar();
             }
             activeAnnotation=null;
@@ -375,6 +377,7 @@ public sealed partial class ScreenCaptureOverlay : Window
         else if((Keyboard.Modifiers&ModifierKeys.Control)!=0&&key==Key.C){CopyOnly();e.Handled=true;}
         else if((Keyboard.Modifiers&ModifierKeys.Control)!=0&&key==Key.S){SaveOnly();e.Handled=true;}
         else if((Keyboard.Modifiers&ModifierKeys.Control)!=0&&key==Key.Z){RemoveLastAnnotation();e.Handled=true;}
+        else if(key==Key.Delete&&selectedAnnotation!=null&&canvas.Children.Contains(selectedAnnotation)){canvas.Children.Remove(selectedAnnotation);selectedAnnotation=null;ClearAnnResizer();e.Handled=true;}
         // 選區完成後的單鍵快捷鍵（無修飾鍵；取色器模式的 C/Shift 已在上方分支處理，注釋文字框聚焦時已提前返回）
         else if(selectionCommitted&&Keyboard.Modifiers==ModifierKeys.None)
         {

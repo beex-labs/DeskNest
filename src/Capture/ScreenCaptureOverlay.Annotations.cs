@@ -339,13 +339,13 @@ sealed partial class ScreenCaptureOverlay
         switch(tool)
         {
             case AnnotationTool.Rect:
-                return new WpfRectangle{Stroke=stroke,StrokeThickness=sw,Fill=fill,RadiusX=4,RadiusY=4};
+                return new WpfRectangle{Stroke=stroke,StrokeThickness=sw,Fill=ShapeFill(),RadiusX=4,RadiusY=4};
             case AnnotationTool.Ellipse:
-                return new Ellipse{Stroke=stroke,StrokeThickness=sw,Fill=fill};
+                return new Ellipse{Stroke=stroke,StrokeThickness=sw,Fill=ShapeFill()};
             case AnnotationTool.Line:
                 return new Line{Stroke=stroke,StrokeThickness=sw,StrokeDashArray=DashFor(annotationDash),StrokeStartLineCap=PenLineCap.Round,StrokeEndLineCap=PenLineCap.Round,X1=p.X,Y1=p.Y,X2=p.X,Y2=p.Y};
             case AnnotationTool.Arrow:
-                var group=new Canvas();
+                var group=new Canvas{Tag=new ArrowInfo{Start=p,End=p}};
                 group.Children.Add(new Line{Stroke=stroke,StrokeThickness=sw,StrokeDashArray=DashFor(annotationDash),StrokeStartLineCap=PenLineCap.Round,StrokeEndLineCap=PenLineCap.Round,X1=p.X,Y1=p.Y,X2=p.X,Y2=p.Y});
                 group.Children.Add(new Polygon{Fill=stroke,Points=new PointCollection{p,p,p}});
                 return group;
@@ -380,33 +380,146 @@ sealed partial class ScreenCaptureOverlay
 
     System.Windows.Media.Brush HighlighterStroke(){var c=annotationTextColors[annotationTextColorIndex];return new SolidColorBrush(Color.FromArgb(110,c.R,c.G,c.B));}
 
+    // 無填充（alpha=0）時回傳 null：讓形狀內部不攔截命中測試，才能在框內繼續畫新標注，點中描邊才是選中
+    System.Windows.Media.Brush? ShapeFill(){var c=annotationFillColors[annotationFillColorIndex];return c.A==0?null:new SolidColorBrush(c);}
+
+    // 箭頭的幾何狀態：起點/終點與文字沿線位置參數（0~1），掛在箭頭組 Canvas.Tag 上
+    sealed class ArrowInfo{public Point Start,End;public double TextT=.5;}
+
     void AttachAnnotationEvents(UIElement element)
     {
+        var moving=false;var moveLast=new Point();
         element.MouseLeftButtonDown+=(_,e)=>
         {
             if(e.ClickCount==2&&element is Canvas ac&&ac.Children.OfType<Polygon>().Any()){AddArrowText(ac);e.Handled=true;return;}
-            if(annotationTool!=AnnotationTool.Select)return;
+            if(!CanDirectEdit(element))return;
             selectedAnnotation=element;
-            if(element is FrameworkElement rf)SelectAnnotationForResize(rf);
+            SelectAnnotationForResize(element);
             annotationTool=ToolFromAnnotation(element);
             if(element is WpfTextBox box){box.Focus();box.CaretIndex=box.Text.Length;}
+            else{moving=true;moveLast=e.GetPosition(canvas);element.CaptureMouse();}
             Cursor=CursorForAnnotationTool(annotationTool);
             UpdateToolHighlights();
+            RefreshSecondaryBar();
             e.Handled=true;
         };
+        element.MouseMove+=(_,e)=>
+        {
+            if(!moving)return;
+            if(e.LeftButton!=MouseButtonState.Pressed){moving=false;element.ReleaseMouseCapture();return;}
+            var p=e.GetPosition(canvas);
+            MoveAnnotationBy(element,p-moveLast);
+            moveLast=p;
+            e.Handled=true;
+        };
+        element.MouseLeftButtonUp+=(_,e)=>{if(moving){moving=false;element.ReleaseMouseCapture();e.Handled=true;}};
+        element.MouseEnter+=(_,_)=>{if(element is FrameworkElement fe)fe.Cursor=CanDirectEdit(element)&&element is not WpfTextBox?Cursors.SizeAll:null;};
     }
 
+    // 畫筆/螢光筆/馬賽克/橡皮擦/序號/取色器工具下不攔截點擊（保證能在既有標注上繼續塗畫）；
+    // 其餘工具點中矩形/圓形/線條/箭頭/文字即可直接選中二次調整（拖動移動、拖端點/角點變形）
+    bool CanDirectEdit(UIElement element)
+    {
+        if(annotationTool==AnnotationTool.Select)return true;
+        if(IsBrushTool(annotationTool)||annotationTool is AnnotationTool.Number or AnnotationTool.ColorPicker)return false;
+        return element is WpfRectangle or Ellipse or Line or WpfTextBox||element is Canvas c&&c.Children.OfType<Polygon>().Any();
+    }
+
+    void MoveAnnotationBy(UIElement element,Vector d)
+    {
+        switch(element)
+        {
+            case Line l:l.X1+=d.X;l.Y1+=d.Y;l.X2+=d.X;l.Y2+=d.Y;break;
+            case Canvas g when g.Tag is ArrowInfo info:info.Start+=d;info.End+=d;LayoutArrow(g);break;
+            case Polyline pl:for(var i=0;i<pl.Points.Count;i++)pl.Points[i]+=d;break;
+            case FrameworkElement fe:
+                var left=Canvas.GetLeft(fe);if(double.IsNaN(left))left=0;
+                var top=Canvas.GetTop(fe);if(double.IsNaN(top))top=0;
+                Canvas.SetLeft(fe,left+d.X);Canvas.SetTop(fe,top+d.Y);
+                break;
+        }
+        annResizer?.InvalidateArrange();
+    }
+
+    // 雙擊箭頭：沿箭頭方向嵌入文字（箭桿斷開讓位），文字框未聚焦時可沿線拖拽擺放，雙擊文字框進入編輯
     void AddArrowText(Canvas group)
     {
         if(group.Children.OfType<WpfTextBox>().FirstOrDefault() is WpfTextBox exist){exist.Focus();exist.SelectAll();return;}
-        var line=group.Children.OfType<Line>().FirstOrDefault();
-        if(line==null)return;
-        var mx=(line.X1+line.X2)/2;var my=(line.Y1+line.Y2)/2;
-        var tb=new WpfTextBox{Text=L("文字"),Foreground=AnnotationStroke(),Background=new SolidColorBrush(Color.FromArgb(180,13,19,33)),BorderThickness=new Thickness(0),Padding=new Thickness(4,1,4,1),FontSize=annotationFontSize,FontWeight=FontWeights.SemiBold,MinWidth=30};
-        Canvas.SetLeft(tb,mx-16);Canvas.SetTop(tb,my-14);
-        tb.LostFocus+=(_,_)=>{if(string.IsNullOrWhiteSpace(tb.Text))group.Children.Remove(tb);};
+        if(group.Tag is not ArrowInfo)return;
+        var stroke=AnnotationStroke();
+        var tb=new WpfTextBox{Text=L("文字"),Foreground=stroke,CaretBrush=stroke,Background=Brushes.Transparent,BorderThickness=new Thickness(0),Padding=new Thickness(2,0,2,0),FontSize=annotationFontSize,FontFamily=new System.Windows.Media.FontFamily(annotationFontFamily),FontWeight=FontWeights.SemiBold,MinWidth=24,TextAlignment=TextAlignment.Center};
+        tb.TextChanged+=(_,_)=>LayoutArrow(group);
+        tb.LostFocus+=(_,_)=>{if(string.IsNullOrWhiteSpace(tb.Text)){group.Children.Remove(tb);LayoutArrow(group);}};
+        AttachArrowTextDrag(tb,group);
         group.Children.Add(tb);
+        LayoutArrow(group);
         tb.Focus();tb.SelectAll();
+    }
+
+    void AttachArrowTextDrag(WpfTextBox tb,Canvas group)
+    {
+        var drag=false;
+        tb.PreviewMouseLeftButtonDown+=(_,e)=>
+        {
+            if(e.ClickCount==2){tb.Focus();tb.SelectAll();e.Handled=true;return;}
+            if(tb.IsKeyboardFocusWithin)return;// 編輯態保留原生文字選擇
+            drag=true;tb.CaptureMouse();e.Handled=true;
+        };
+        tb.PreviewMouseMove+=(_,e)=>
+        {
+            if(!drag||group.Tag is not ArrowInfo info)return;
+            if(e.LeftButton!=MouseButtonState.Pressed){drag=false;tb.ReleaseMouseCapture();return;}
+            // 把滑鼠點投影到箭桿上，換算成 0~1 的沿線位置參數
+            var p=e.GetPosition(canvas);
+            var dx=info.End.X-info.Start.X;var dy=info.End.Y-info.Start.Y;
+            var lenSq=dx*dx+dy*dy;if(lenSq<1)return;
+            info.TextT=Math.Clamp(((p.X-info.Start.X)*dx+(p.Y-info.Start.Y)*dy)/lenSq,0.06,0.94);
+            LayoutArrow(group);
+            e.Handled=true;
+        };
+        tb.PreviewMouseLeftButtonUp+=(_,e)=>{if(drag){drag=false;tb.ReleaseMouseCapture();e.Handled=true;}};
+        tb.MouseEnter+=(_,_)=>tb.Cursor=tb.IsKeyboardFocusWithin?null:Cursors.SizeAll;
+    }
+
+    // 依 ArrowInfo 重排整支箭頭：箭桿（有文字時斷成兩段讓位）、箭頭三角、沿箭頭方向旋轉的文字框
+    void LayoutArrow(Canvas group)
+    {
+        if(group.Tag is not ArrowInfo info)return;
+        var line=group.Children.OfType<Line>().FirstOrDefault(l=>(l.Tag as string)!="seg2");
+        var head=group.Children.OfType<Polygon>().FirstOrDefault();
+        if(line==null||head==null)return;
+        double x1=info.Start.X,y1=info.Start.Y,x2=info.End.X,y2=info.End.Y;
+        var angle=Math.Atan2(y2-y1,x2-x1);var len=Math.Max(13d,line.StrokeThickness*3);var spread=Math.PI/7;
+        var dist=Math.Sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1));var ret=Math.Min(len*0.85,dist);
+        head.Points=new PointCollection{new Point(x2,y2),new Point(x2-len*Math.Cos(angle-spread),y2-len*Math.Sin(angle-spread)),new Point(x2-len*Math.Cos(angle+spread),y2-len*Math.Sin(angle+spread))};
+        var cos=Math.Cos(angle);var sin=Math.Sin(angle);var tail=dist-ret;
+        var tb=group.Children.OfType<WpfTextBox>().FirstOrDefault();
+        var seg2=group.Children.OfType<Line>().FirstOrDefault(l=>(l.Tag as string)=="seg2");
+        if(tb==null||dist<2)
+        {
+            line.X1=x1;line.Y1=y1;line.X2=x1+cos*tail;line.Y2=y1+sin*tail;line.Visibility=Visibility.Visible;
+            if(seg2!=null)seg2.Visibility=Visibility.Collapsed;
+            return;
+        }
+        tb.UpdateLayout();
+        var tw=tb.ActualWidth>0?tb.ActualWidth:tb.MinWidth;
+        var th=tb.ActualHeight>0?tb.ActualHeight:tb.FontSize+8;
+        var t=Math.Clamp(info.TextT,0.06,0.94);
+        var cx=x1+(x2-x1)*t;var cy=y1+(y2-y1)*t;
+        var deg=angle*180/Math.PI;
+        // 文字沿箭頭方向排列；箭頭指向左半邊時翻轉 180° 保證文字仍從左到右可讀
+        tb.RenderTransformOrigin=new Point(.5,.5);
+        tb.RenderTransform=new RotateTransform(deg>90||deg<-90?deg+180:deg);
+        Canvas.SetLeft(tb,cx-tw/2);Canvas.SetTop(tb,cy-th/2);
+        // 斷線讓位：前段畫到文字前緣，後段從文字後緣畫到箭桿尾（貼近端點時自動隱藏過短的段）
+        var half=tw/2+6;
+        var g1=Math.Clamp(t*dist-half,0,tail);var g2=Math.Clamp(t*dist+half,0,tail);
+        line.X1=x1;line.Y1=y1;line.X2=x1+cos*g1;line.Y2=y1+sin*g1;
+        line.Visibility=g1>1?Visibility.Visible:Visibility.Collapsed;
+        if(seg2==null){seg2=new Line{Tag="seg2",StrokeStartLineCap=PenLineCap.Round,StrokeEndLineCap=PenLineCap.Round};group.Children.Insert(1,seg2);}
+        seg2.Stroke=line.Stroke;seg2.StrokeThickness=line.StrokeThickness;seg2.StrokeDashArray=line.StrokeDashArray;
+        seg2.X1=x1+cos*g2;seg2.Y1=y1+sin*g2;seg2.X2=x1+cos*tail;seg2.Y2=y1+sin*tail;
+        seg2.Visibility=tail-g2>1?Visibility.Visible:Visibility.Collapsed;
     }
     AnnotationTool ToolFromAnnotation(UIElement element)=>element switch
     {
@@ -435,11 +548,13 @@ sealed partial class ScreenCaptureOverlay
                 shape.Stroke=stroke;
                 shape.StrokeThickness=annotationStrokeWidth;
                 shape.StrokeDashArray=DashFor(annotationDash);
-                if(shape is WpfRectangle||shape is Ellipse)shape.Fill=fill;
+                if(shape is WpfRectangle||shape is Ellipse)shape.Fill=ShapeFill();
                 break;
             case Canvas group:
                 foreach(var line in group.Children.OfType<Line>()){line.Stroke=stroke;line.StrokeThickness=annotationStrokeWidth;line.StrokeDashArray=DashFor(annotationDash);}
                 foreach(var head in group.Children.OfType<Polygon>())head.Fill=stroke;
+                foreach(var tb in group.Children.OfType<WpfTextBox>()){tb.Foreground=stroke;tb.CaretBrush=stroke;tb.FontSize=annotationFontSize;tb.FontFamily=new System.Windows.Media.FontFamily(annotationFontFamily);}
+                LayoutArrow(group);
                 break;
             case WpfTextBox box:
                 box.Foreground=stroke;
@@ -463,12 +578,10 @@ sealed partial class ScreenCaptureOverlay
                 Canvas.SetLeft(e,rect.X);Canvas.SetTop(e,rect.Y);e.Width=rect.Width;e.Height=rect.Height;break;
             case Line line:
                 line.X1=Math.Clamp(a.X,selectionRect.Left,selectionRect.Right);line.Y1=Math.Clamp(a.Y,selectionRect.Top,selectionRect.Bottom);line.X2=Math.Clamp(b.X,selectionRect.Left,selectionRect.Right);line.Y2=Math.Clamp(b.Y,selectionRect.Top,selectionRect.Bottom);break;
-            case Canvas group when group.Children.Count>=2&&group.Children[0] is Line line&&group.Children[1] is Polygon head:
-                var x1=Math.Clamp(a.X,selectionRect.Left,selectionRect.Right);var y1=Math.Clamp(a.Y,selectionRect.Top,selectionRect.Bottom);var x2=Math.Clamp(b.X,selectionRect.Left,selectionRect.Right);var y2=Math.Clamp(b.Y,selectionRect.Top,selectionRect.Bottom);
-                var angle=Math.Atan2(y2-y1,x2-x1);var len=Math.Max(13d,line.StrokeThickness*3);var spread=Math.PI/7;
-                var dist=Math.Sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1));var ret=Math.Min(len*0.85,dist);
-                line.X1=x1;line.Y1=y1;line.X2=x2-Math.Cos(angle)*ret;line.Y2=y2-Math.Sin(angle)*ret;
-                head.Points=new PointCollection{new Point(x2,y2),new Point(x2-len*Math.Cos(angle-spread),y2-len*Math.Sin(angle-spread)),new Point(x2-len*Math.Cos(angle+spread),y2-len*Math.Sin(angle+spread))};
+            case Canvas group when group.Tag is ArrowInfo info:
+                info.Start=new Point(Math.Clamp(a.X,selectionRect.Left,selectionRect.Right),Math.Clamp(a.Y,selectionRect.Top,selectionRect.Bottom));
+                info.End=new Point(Math.Clamp(b.X,selectionRect.Left,selectionRect.Right),Math.Clamp(b.Y,selectionRect.Top,selectionRect.Bottom));
+                LayoutArrow(group);
                 break;
             case Polyline pl:
                 pl.Points.Add(new Point(Math.Clamp(b.X,selectionRect.Left,selectionRect.Right),Math.Clamp(b.Y,selectionRect.Top,selectionRect.Bottom)));
@@ -488,6 +601,7 @@ sealed partial class ScreenCaptureOverlay
             var child=canvas.Children[i];
             if(child is UIElement ue&&IsChrome(ue))continue;
             if(child is Border bd&&(bd.Tag as string)=="num"&&numberCounter>1)numberCounter--;
+            if(ReferenceEquals(child,selectedAnnotation)){selectedAnnotation=null;ClearAnnResizer();}
             canvas.Children.RemoveAt(i);
             break;
         }
@@ -586,14 +700,62 @@ sealed partial class ScreenCaptureOverlay
     }
 
     void ClearAnnResizer(){if(annResizer!=null){AdornerLayer.GetAdornerLayer(canvas)?.Remove(annResizer);annResizer=null;}}
-    void SelectAnnotationForResize(FrameworkElement fe)
+    void SelectAnnotationForResize(UIElement element)
     {
         ClearAnnResizer();
-        if(!(fe is WpfRectangle||fe is Ellipse||fe is WpfTextBox))return;
+        if(element is not FrameworkElement fe)return;
+        var lineLike=fe is Line||fe is Canvas c&&c.Tag is ArrowInfo;
+        var boxLike=fe is WpfRectangle||fe is Ellipse||fe is WpfTextBox;
+        if(!lineLike&&!boxLike)return;
         var layer=AdornerLayer.GetAdornerLayer(canvas);
         if(layer==null)return;
-        annResizer=new AnnResizeAdorner(fe);
+        annResizer=lineLike?new LineEditAdorner(fe,()=>{if(fe is Canvas g)LayoutArrow(g);}):new AnnResizeAdorner(fe);
         layer.Add(annResizer);
+    }
+
+    // 線條/箭頭的端點編輯器：兩個端點把手可拖拽重新定位起點/終點
+    sealed class LineEditAdorner : Adorner
+    {
+        readonly VisualCollection visuals;
+        readonly System.Windows.Controls.Primitives.Thumb[] thumbs=new System.Windows.Controls.Primitives.Thumb[2];
+        readonly Action relayout;
+        public LineEditAdorner(FrameworkElement adorned,Action relayout):base(adorned)
+        {
+            this.relayout=relayout;
+            visuals=new VisualCollection(this);
+            var tpl=AnnResizeAdorner.ThumbTemplate();
+            for(int i=0;i<2;i++){var t=new System.Windows.Controls.Primitives.Thumb{Width=12,Height=12,Template=tpl,Cursor=Cursors.SizeAll};thumbs[i]=t;visuals.Add(t);}
+            thumbs[0].DragDelta+=(_,e)=>MoveEnd(true,e.HorizontalChange,e.VerticalChange);
+            thumbs[1].DragDelta+=(_,e)=>MoveEnd(false,e.HorizontalChange,e.VerticalChange);
+        }
+        (Point a,Point b) Ends()=>AdornedElement switch
+        {
+            Line l=>(new Point(l.X1,l.Y1),new Point(l.X2,l.Y2)),
+            Canvas c when c.Tag is ArrowInfo i=>(i.Start,i.End),
+            _=>(default,default)
+        };
+        void MoveEnd(bool first,double dx,double dy)
+        {
+            switch(AdornedElement)
+            {
+                case Line l:if(first){l.X1+=dx;l.Y1+=dy;}else{l.X2+=dx;l.Y2+=dy;}break;
+                case Canvas c when c.Tag is ArrowInfo i:
+                    if(first)i.Start=new Point(i.Start.X+dx,i.Start.Y+dy);else i.End=new Point(i.End.X+dx,i.End.Y+dy);
+                    relayout();
+                    break;
+            }
+            InvalidateArrange();
+        }
+        protected override int VisualChildrenCount=>visuals.Count;
+        protected override Visual GetVisualChild(int i)=>visuals[i];
+        protected override Size MeasureOverride(Size c){foreach(var t in thumbs)t.Measure(new Size(12,12));return base.MeasureOverride(c);}
+        protected override Size ArrangeOverride(Size finalSize)
+        {
+            var(a,b)=Ends();
+            thumbs[0].Arrange(new Rect(a.X-6,a.Y-6,12,12));
+            thumbs[1].Arrange(new Rect(b.X-6,b.Y-6,12,12));
+            return finalSize;
+        }
     }
 
     sealed class AnnResizeAdorner : Adorner
@@ -625,7 +787,7 @@ sealed partial class ScreenCaptureOverlay
             if(moveY)Canvas.SetTop(fe,top-(newH-curH));
             InvalidateArrange();
         }
-        static ControlTemplate ThumbTemplate()
+        internal static ControlTemplate ThumbTemplate()
         {
             var tpl=new ControlTemplate(typeof(System.Windows.Controls.Primitives.Thumb));
             var f=new FrameworkElementFactory(typeof(Border));
