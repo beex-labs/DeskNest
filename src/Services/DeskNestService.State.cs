@@ -38,6 +38,9 @@ if(!State.HotkeyDefaultsV2Migrated){var ta=State.Hotkeys.GetValueOrDefault("Togg
         State.FloatingBallOpacity=Finite(State.FloatingBallOpacity>0?State.FloatingBallOpacity:State.WidgetOpacity,State.WidgetOpacity,.2,1);
         State.FloatingBallLeft=double.IsFinite(State.FloatingBallLeft)?State.FloatingBallLeft:-1;
         State.FloatingBallTop=double.IsFinite(State.FloatingBallTop)?State.FloatingBallTop:-1;
+        State.WallpaperGlobalVolume=Finite(State.WallpaperGlobalVolume,0,0,1);
+        State.WallpaperFpsCap=(int)Finite(State.WallpaperFpsCap,60,10,240);
+        foreach(var w in State.WallpaperLibrary){w.Volume=Finite(w.Volume,0,0,1);w.PlaybackRate=Finite(w.PlaybackRate,1,.25,4);}
         foreach(var nest in State.Nests)
         {
             nest.Left=Finite(nest.Left,80,-20000,20000);

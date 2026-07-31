@@ -3,6 +3,8 @@ using System.Text.Json.Serialization;
 namespace BeeX.DeskNest;
 // The Launcher widget has been removed (replaced by the Ctrl+Q unified search window, SearchPaletteWindow); the enum member is kept so numeric serialization of old saves does not shift, and Load() clears leftover widgets
 public enum NestKind { Note, Todo, Folder, ManagedFiles, Capture, Music, Clock, Screenshot, Weather, Tags, SystemMonitor, Deadline, Countdown, Launcher, WorkTimer }
+// Render backend selected per wallpaper: Video/Image use MediaElement, Web/Shader/Scene use WebView2.
+public enum WallpaperKind { Video, Image, Web, Shader, Scene }
 public sealed class NestModel
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -52,6 +54,8 @@ public sealed class TodoItem { public Guid Id { get; set; } = Guid.NewGuid(); pu
 public sealed class CaptureItem { public Guid Id { get; set; } = Guid.NewGuid(); public string Text { get; set; } = ""; public DateTime CreatedAt { get; set; } = DateTime.Now; public string ImagePath { get; set; } = ""; public bool Pinned { get; set; } public string Paper { get; set; } = "White"; public string Source { get; set; } = "Manual"; public string MarkdownPath { get; set; } = ""; }
 public sealed class TagItem { public Guid Id { get; set; } = Guid.NewGuid(); public string Name { get; set; } = ""; public string Color { get; set; } = "#FF8A00"; public DateTime CreatedAt { get; set; } = DateTime.Now; }
 public sealed class CountdownItem { public Guid Id { get; set; } = Guid.NewGuid(); public string Title { get; set; } = "重要日子"; public DateTime Date { get; set; } = DateTime.Today.AddDays(30); public string Color { get; set; } = "#FF8A00"; public bool Annual { get; set; } public string FontFamily { get; set; } = ""; public double FontSize { get; set; } public string FontColor { get; set; } = ""; }
+// A single installed wallpaper: its render kind, source path, cached thumbnail and per-item playback options. Props holds free-form key/value settings consumed by web wallpapers.
+public sealed class WallpaperItem { public Guid Id { get; set; } = Guid.NewGuid(); public WallpaperKind Kind { get; set; } public string Path { get; set; } = ""; public string Name { get; set; } = ""; public string Thumb { get; set; } = ""; public double Volume { get; set; } = 1; public double PlaybackRate { get; set; } = 1; public bool AudioReactive { get; set; } public bool Interactive { get; set; } public Dictionary<string,string> Props { get; set; } = []; }
 public sealed class AppState
 {
     public List<NestModel> Nests { get; set; } = [];
@@ -116,4 +120,23 @@ public sealed class AppState
     public Dictionary<string,bool> ToolButtonVisibility { get; set; } = [];
     public Dictionary<string,bool> ToolButtonMultiOpen { get; set; } = [];
     public string Language { get; set; } = "zh-TW";
+    // ---- Live wallpaper engine ----
+    /// <summary>Master switch for the desktop live wallpaper engine.</summary>
+    public bool WallpaperEnabled { get; set; }
+    /// <summary>Installed wallpaper library entries.</summary>
+    public List<WallpaperItem> WallpaperLibrary { get; set; } = [];
+    /// <summary>Per-monitor assignment: key is the monitor device name, value is the wallpaper item id.</summary>
+    public Dictionary<string,Guid> WallpaperPerMonitor { get; set; } = [];
+    /// <summary>Upper frame-rate limit applied to every wallpaper surface.</summary>
+    public int WallpaperFpsCap { get; set; } = 60;
+    /// <summary>Pause rendering when the wallpaper is fully covered by other windows.</summary>
+    public bool WallpaperPauseWhenOccluded { get; set; } = true;
+    /// <summary>Pause rendering while the device runs on battery.</summary>
+    public bool WallpaperPauseOnBattery { get; set; } = true;
+    /// <summary>Mute wallpaper audio while a fullscreen application is in the foreground.</summary>
+    public bool WallpaperMuteOnFullscreen { get; set; } = true;
+    /// <summary>Global playback volume for video wallpapers (0-1).</summary>
+    public double WallpaperGlobalVolume { get; set; }
+    /// <summary>Allow wallpapers to react to the system audio spectrum.</summary>
+    public bool WallpaperAudioReactive { get; set; } = true;
 }

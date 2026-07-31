@@ -31,6 +31,8 @@ public sealed partial class DeskNestService : IDisposable
     /// <summary>Whole-disk file-name index (MFT/USN) used by the Ctrl+Q unified search window.</summary>
     public FileIndexService FileIndex { get; } = new();
     public WindowTransparencyService Transparency { get; } = new();
+    /// <summary>Desktop live wallpaper engine (created on startup; also created lazily when the gallery is opened).</summary>
+    public WallpaperService? Wallpaper { get; private set; }
     DispatcherTimer? clipboardTimer,saveTimer;string lastClipboard="",lastClipboardImageHash="",lastClipboardFileSignature="";readonly HashSet<Guid> reminded=[];bool sessionLocked;
     public AppState State { get; private set; } = new();
     string StateFile => Path.Combine(dataDir, "state.json");
@@ -51,6 +53,7 @@ public sealed partial class DeskNestService : IDisposable
         ApplyFloatingBallVisibility();
         RebuildHotkeys();
         FileIndex.Start();
+        Wallpaper=new WallpaperService(this);if(State.WallpaperEnabled)Wallpaper.Start();
         clipboardTimer=new DispatcherTimer{Interval=TimeSpan.FromMilliseconds(800)};clipboardTimer.Tick+=(_,_)=>{PollClipboard();CheckReminders();};clipboardTimer.Start();
         foreach (var nest in State.Nests) Open(nest);
         if(NeedsOnboarding())ShowOnboarding();
@@ -61,6 +64,8 @@ public sealed partial class DeskNestService : IDisposable
     public void ShowWindowTransparency(){if(transparencyWindow is null||!transparencyWindow.IsLoaded)transparencyWindow=new WindowTransparencyWindow(this,Transparency);transparencyWindow.ShowTool();}
     /// <summary>Ctrl+Q global unified search window (successor to the former quick-launch grid).</summary>
     public void ShowSearchPalette(){if(searchPalette is null||!searchPalette.IsLoaded)searchPalette=new SearchPaletteWindow(this);searchPalette.ShowPalette();}
+    /// <summary>Opens the live wallpaper gallery, creating the engine on demand when it was not started at launch.</summary>
+    public void ShowWallpaperGallery(){Wallpaper??=new WallpaperService(this);Wallpaper.ShowGallery();}
     // BeeX system cleanup component: uninstalling programs and cleaning HKLM / Program Files residues require administrator rights.
     // If already elevated, open it in-process; otherwise relaunch self as administrator in standalone --cleaner mode; if UAC is cancelled, fall back to a non-elevated open.
     public void ShowCleaner()
@@ -100,7 +105,7 @@ public sealed partial class DeskNestService : IDisposable
         catch{return false;}
     }
     public void MinimizeAllTransparentWindows(){if(Transparency.HasModifiedWindows)Transparency.MinimizeAllTransparent();}
-    public void ApplyPreferences(bool persist=true){SyncRuntimeDefaults();control?.ApplyPreferences();control?.RefreshFeatures();settings?.ApplyPreferences();foreach(var nest in State.Nests){nest.FontFamily=ContentFontFamily();nest.FontSize=nest.Kind==NestKind.WorkTimer?Math.Max(20,ContentFontSize()):ContentFontSize();nest.FontColor=State.GlobalFontColor;}foreach(var w in windows.Values)w.ApplyPreferences();if(control!=null){Localization.ApplyFont(control,InterfaceFontFamily(),InterfaceFontSize());WindowRegionHelper.ApplyDeferred(control,State.CornerRadius);}if(settings!=null){Localization.ApplyFont(settings,InterfaceFontFamily(),InterfaceFontSize());WindowRegionHelper.ApplyDeferred(settings,State.CornerRadius);}ApplyTrayTheme();ApplyFloatingBallVisibility();if(floatingBall is { IsLoaded:true })floatingBall.ApplyPreferences();if(transparencyWindow is { IsLoaded:true })transparencyWindow.ApplyTheme();foreach(var w in noteWindows.Values.ToList())w.RefreshHostTheme();if(persist)Save();}
+    public void ApplyPreferences(bool persist=true){SyncRuntimeDefaults();control?.ApplyPreferences();control?.RefreshFeatures();settings?.ApplyPreferences();foreach(var nest in State.Nests){nest.FontFamily=ContentFontFamily();nest.FontSize=nest.Kind==NestKind.WorkTimer?Math.Max(20,ContentFontSize()):ContentFontSize();nest.FontColor=State.GlobalFontColor;}foreach(var w in windows.Values)w.ApplyPreferences();if(control!=null){Localization.ApplyFont(control,InterfaceFontFamily(),InterfaceFontSize());WindowRegionHelper.ApplyDeferred(control,State.CornerRadius);}if(settings!=null){Localization.ApplyFont(settings,InterfaceFontFamily(),InterfaceFontSize());WindowRegionHelper.ApplyDeferred(settings,State.CornerRadius);}ApplyTrayTheme();ApplyFloatingBallVisibility();if(floatingBall is { IsLoaded:true })floatingBall.ApplyPreferences();if(transparencyWindow is { IsLoaded:true })transparencyWindow.ApplyTheme();foreach(var w in noteWindows.Values.ToList())w.RefreshHostTheme();Wallpaper?.ApplyPreferences();if(persist)Save();}
     /// <summary>Pushes the settings-page defaults to static consumers such as the screenshot overlay and screen-recording tool.</summary>
     void SyncRuntimeDefaults(){ScreenCaptureOverlay.DefaultFormat=State.CaptureDefaultFormat;ScreenCaptureOverlay.CopyOnSave=State.CaptureCopyOnSave;RecordingController.DefaultFps=State.RecordingDefaultFps;RecordingController.DefaultCountdownSec=State.RecordingCountdownSec;}
     public void SetLanguage(string language){State.Language=language;Localization.CurrentLanguage=language;control?.RefreshLanguage();settings?.RefreshLanguage();foreach(var w in windows.Values)w.RefreshLanguage();ApplyTrayLanguage(language);if(noteWindows.Count>0)try{BeexWrite.Localization.Strings.Instance.LoadLocale(BeexWrite.WriteHost.WriteDataDirectory,WriteLocale());}catch{}Save();}
@@ -387,6 +392,6 @@ public sealed partial class DeskNestService : IDisposable
     // Translation screenshot: reuses the normal screenshot overlay, but after selection automatically triggers the overlay's built-in in-place translation (keeps the selection; dragging/resizing re-translates automatically), instead of popping a separate pinned image window after closing
     public void CaptureScreenForTranslation() { ScreenCaptureOverlay.Begin(ScreenshotDirectory,path => { try{if(System.Windows.Clipboard.ContainsImage()){var image=System.Windows.Clipboard.GetImage();if(image!=null){using var memory=new MemoryStream();var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(image));encoder.Save(memory);lastClipboardImageHash=Convert.ToHexString(SHA256.HashData(memory.ToArray()));}}}catch{}var capture=State.Nests.FirstOrDefault(n=>n.Kind==NestKind.Capture);if(capture!=null){capture.Captures.Insert(0,new CaptureItem{Text="螢幕截圖",ImagePath=path,Source="Manual"});TrimCaptures(capture);if(windows.TryGetValue(capture.Id,out var w))w.RefreshData();Save();} },closed:null,language:State.Language,autoTranslateOnSelect:true); }
     public void PinClipboardText(){try{if(System.Windows.Clipboard.ContainsText()){var text=System.Windows.Clipboard.GetText();if(!string.IsNullOrWhiteSpace(text))TextPinWindow.Pin(text.Trim());}}catch{}}
-    public void Exit() { transparencyWindow?.ShutdownTool();floatingBall?.Close();searchPalette?.Hide();FileIndex.Dispose();foreach (var w in windows.Values) { w.AllowClose = true; w.Close(); } tray!.Visible = false; System.Windows.Application.Current.Shutdown(); }
-    public void Dispose() { SystemEvents.SessionSwitch-=SessionSwitch;clipboardTimer?.Stop();hotkey?.Dispose(); FileIndex.Dispose();transparencyWindow?.ShutdownTool();menuActivator?.Close(); floatingBall?.Close();tray?.Dispose(); }
+    public void Exit() { transparencyWindow?.ShutdownTool();floatingBall?.Close();searchPalette?.Hide();Wallpaper?.Dispose();FileIndex.Dispose();foreach (var w in windows.Values) { w.AllowClose = true; w.Close(); } tray!.Visible = false; System.Windows.Application.Current.Shutdown(); }
+    public void Dispose() { SystemEvents.SessionSwitch-=SessionSwitch;clipboardTimer?.Stop();hotkey?.Dispose();Wallpaper?.Dispose(); FileIndex.Dispose();transparencyWindow?.ShutdownTool();menuActivator?.Close(); floatingBall?.Close();tray?.Dispose(); }
 }

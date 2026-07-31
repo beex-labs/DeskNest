@@ -42,6 +42,7 @@ public static partial class BeeXPaths
     public static string NotesDir => Path.Combine(Root, "Notes");
     public static string FileBoxesDir => Path.Combine(Root, "FileBoxes");
     public static string CleanerDir => Path.Combine(Root, "Cleaner");
+    public static string WallpapersDir => Path.Combine(Root, "Wallpapers");
     public static string StateFile => Path.Combine(DataDir, "state.json");
     public static string ConfigFile => Path.Combine(DataDir, "config.json");
 
@@ -110,12 +111,12 @@ public static partial class BeeXPaths
     /// <summary>Creates the standard subdirectory skeleton (idempotent).</summary>
     public static void EnsureLayout()
     {
-        foreach (var dir in new[] { DataDir, ComponentsDir, ScreenshotsDir, RecordingsDir, ClipboardDir, NotesDir, FileBoxesDir, CleanerDir })
+        foreach (var dir in new[] { DataDir, ComponentsDir, ScreenshotsDir, RecordingsDir, ClipboardDir, NotesDir, FileBoxesDir, CleanerDir, WallpapersDir })
             try { Directory.CreateDirectory(dir); } catch { }
     }
 
     /// <summary>List of top-level directories owned by BeeX (only these exist under the root).</summary>
-    static readonly string[] TopLevelDirs={"Data","Components","Screenshots","Recordings","ClipboardImages","Notes","FileBoxes","Cleaner"};
+    static readonly string[] TopLevelDirs={"Data","Components","Screenshots","Recordings","ClipboardImages","Notes","FileBoxes","Cleaner","Wallpapers"};
 
     /// <summary>Normalizes the root directory: an empty folder (deliberately created by the user) is used directly; a BeeX subdirectory is appended only when the target already has other content and is not named BeeX, to avoid scattering data into the user's existing files.</summary>
     public static string NormalizeRoot(string path)

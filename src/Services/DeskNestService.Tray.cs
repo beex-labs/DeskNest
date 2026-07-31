@@ -59,6 +59,7 @@ public sealed partial class DeskNestService
         menu.Items.Add(Item(L("摺疊 / 展開全部","折叠 / 展开全部","Collapse / expand all"),ToggleCollapseAll));
         menu.Items.Add(Item(L("視窗透明","窗口透明","Window transparency"),ShowWindowTransparency));
         menu.Items.Add(Item(L("系統清理","系统清理","System cleaner"),ShowCleaner));
+        menu.Items.Add(Item(L("桌面壁紙","桌面壁纸","Live wallpaper"),ShowWallpaperGallery));
         menu.Items.Add(new System.Windows.Controls.Separator());
         Header(L("新增格子","新增格子","New widget"));
         menu.Items.Add(Item(L("便箋","便笺","Note"),()=>Add(NestKind.Note)));
