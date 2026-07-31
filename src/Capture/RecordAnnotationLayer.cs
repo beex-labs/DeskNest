@@ -22,9 +22,9 @@ namespace BeeX.DeskNest;
 public enum RecordTool { None, Pen, Highlighter, Line, Arrow, Rect, Ellipse, Number, Eraser, Move, Mosaic, Picker }
 
 /// <summary>
-/// 錄製中標注浮層（光柵版）：標注畫在與 region 等大的透明位圖 surface 上，抓幀線程每幀合成到影片。
-/// 馬賽克為畫筆塗抹（cell 遮罩），錄製時逐幀對 live 影像像素化；屏上另有一張 mosaicSurf 定時抓屏預覽。
-/// 取色器：移動顯示放大鏡，按 C 複製色值並關閉。本窗口 WDA_EXCLUDEFROMCAPTURE，僅用於輸入與屏上預覽。
+/// Annotations on the floating layer during recording (raster version): Annotations are drawn on a transparent bitmap surface the same size as the region, and the frame-capture thread composites them into the video frame by frame.
+/// Mosaic is applied using a brush (cell mask), pixelating the live video frame by frame during recording; a separate mosaicSurf screenshot preview is displayed on the screen at regular intervals.
+/// Color Picker: Move the magnifying glass, press C to copy the color value and close the window. This window (WDA_EXCLUDEFROMCAPTURE) is intended only for input and on-screen preview.
 /// </summary>
 public sealed class RecordAnnotationLayer : Window
 {
@@ -55,7 +55,7 @@ public sealed class RecordAnnotationLayer : Window
     readonly WpfBrush hitBrush=new SolidColorBrush(WpfColor.FromArgb(1,0,0,0));
     readonly List<(Drawing.Bitmap snap,long[] mask)> undo=new();
 
-    // 馬賽克（畫筆塗抹）：cell 遮罩 + 屏上預覽層
+    // Mosaic (Brush Stroke): Cell Mask + On-Screen Preview Layer
     readonly HashSet<long> mosaicCells=new();
     int mosaicBlock=16, mosaicBrushW=44;
     volatile int regionScrX, regionScrY;
@@ -67,7 +67,7 @@ public sealed class RecordAnnotationLayer : Window
     volatile bool mosaicBusy; volatile bool mosaicDirty=true; byte[]? mosaicClearBuf;
     System.Windows.Threading.DispatcherTimer? moveTimer;
 
-    // 取色器放大鏡
+    // Color Picker Magnifier
     Border? magnifier; Image? magImg; TextBlock? magText; WriteableBitmap? magWb; Drawing.Color lastPick;
 
     IntPtr hwnd, keyHook; HookProc? keyProc;
@@ -114,7 +114,7 @@ public sealed class RecordAnnotationLayer : Window
         MouseLeftButtonDown+=Down;MouseMove+=Move;MouseLeftButtonUp+=Up;MouseWheel+=OnWheel;
     }
 
-    /// <summary>抓幀線程逐幀調用：先對馬賽克格子像素化（讀取當前 live 影像），再把標注位圖合成上去。</summary>
+    /// <summary>Frame-by-frame invocation of the frame-capture thread: First, the mosaic is pixelated (by reading the current live image), and then the annotation bitmap is overlaid. </summary>
     public void ProcessFrame(Drawing.Bitmap frame)
     {
         long[]? cells=null;
@@ -218,7 +218,7 @@ public sealed class RecordAnnotationLayer : Window
         UpdateRing(lastDiu);e.Handled=true;
     }
 
-    // 用計時器輪詢絕對光標移動選區（不依賴 WPF 捕獲/窗口位置，避免移動窗口丟失捕獲導致不跟隨）
+    // Use a timer to poll the absolute cursor position to select the area (does not rely on WPF capture/window position, preventing the selection from failing to follow due to loss of capture when the window is moved)
     void EnsureMoveTimer()
     {
         if(moveTimer!=null)return;
@@ -231,7 +231,7 @@ public sealed class RecordAnnotationLayer : Window
         };
     }
 
-    // ---- surface 繪製（物理像素） ----
+    // ---- Surface Rendering (Physical Pixels) ----
     Drawing.Color GC(WpfColor c)=>Drawing.Color.FromArgb(c.A,c.R,c.G,c.B);
     float SX(double v)=>(float)(v*scaleX);
     float SY(double v)=>(float)(v*scaleY);
@@ -342,8 +342,8 @@ public sealed class RecordAnnotationLayer : Window
         catch{}
     }
 
-    // ---- 馬賽克（畫筆塗抹遮罩 + 逐幀像素化） ----
-    // 用「絕對光標→錄製 region 本地物理座標」，與抓幀/錄製同一基準，保證馬賽克精準落在光標處（不受窗口/DPI 錯位影響）
+    // ---- Mosaic (Brush-Applied Mask + Frame-by-Frame Pixelation) ----
+    // Use "Absolute Cursor → Record Region with Local Physical Coordinates" to ensure the same reference point as frame capture/recording, guaranteeing that the mosaic is precisely positioned at the cursor location (unaffected by window or DPI misalignment).
     Point MosaicPoint(){GetCursorPos(out var cp);return new Point((cp.X-regionScrX)/Math.Max(0.0001,scaleX),(cp.Y-regionScrY)/Math.Max(0.0001,scaleY));}
     List<long> MarkMosaic(Point p)
     {
@@ -364,7 +364,7 @@ public sealed class RecordAnnotationLayer : Window
         return touched;
     }
     void PaintMosaic(Point p){var t=MarkMosaic(p);if(t.Count>0)RenderMosaicCellsNow(t);}
-    // 同步渲染指定格子（僅筆刷小範圍），保證即時跟手；整體 live 刷新交給後台 timer
+    // Synchronously render specified grid cells (only the small area covered by the brush) to ensure real-time responsiveness; leave the overall live refresh to the background timer.
     void RenderMosaicCellsNow(List<long> cells)
     {
         int block=mosaicBlock,minX=pw,minY=ph,maxX=0,maxY=0;
@@ -398,7 +398,7 @@ public sealed class RecordAnnotationLayer : Window
         mosaicTimer.Tick+=(_,_)=>MosaicTick();
         mosaicTimer.Start();
     }
-    // 屏上馬賽克預覽：抓屏+像素化放到後台線程，且只處理遮罩包圍盒，UI 線程僅做小塊 WritePixels，避免卡頓。
+    // On-screen mosaic preview: Screen capture and pixelation are handled in a background thread, and only the mask bounding box is processed; the UI thread only performs small WritePixels operations to prevent stuttering.
     void MosaicTick()
     {
         if(mosaicBusy)return;
@@ -425,7 +425,7 @@ public sealed class RecordAnnotationLayer : Window
                 using(var g=Drawing.Graphics.FromImage(grab))g.CopyFromScreen(ox,oy,0,0,new Drawing.Size(bw,bh),Drawing.CopyPixelOperation.SourceCopy);
                 var gd=grab.LockBits(new Drawing.Rectangle(0,0,bw,bh),Imaging.ImageLockMode.ReadOnly,Imaging.PixelFormat.Format32bppArgb);
                 stride=gd.Stride;var src=new byte[stride*bh];Marshal.Copy(gd.Scan0,src,0,src.Length);grab.UnlockBits(gd);
-                outBuf=new byte[stride*bh];  // 透明底，僅遮罩格子填不透明像素塊
+                outBuf=new byte[stride*bh];  // Transparent background; only the grid cells are filled with opaque pixels.
                 foreach(var key in cells)
                 {
                     int cx=(int)(key&0xFFFFFFFF),cy=(int)(key>>32);
@@ -487,7 +487,7 @@ public sealed class RecordAnnotationLayer : Window
         for(int y=ys;y<ye;y++){int off=y*stride+xs*4;for(int x=xs;x<xe;x++){buf[off]=ab;buf[off+1]=ag;buf[off+2]=ar;buf[off+3]=255;off+=4;}}
     }
 
-    // ---- 取色器 ----
+    // ---- Color Picker ----
     void UpdateMagnifier(Point p)
     {
         try
@@ -535,7 +535,7 @@ public sealed class RecordAnnotationLayer : Window
         catch{}
     }
 
-    // ---- 撤銷（surface 快照 + 馬賽克遮罩快照） ----
+    // ---- Undo (surface snapshot + mosaic mask snapshot) ----
     void PushUndo(){ lock(surfLock){ try{ undo.Add(((Drawing.Bitmap)surface.Clone(),mosaicCells.ToArray())); if(undo.Count>12){undo[0].snap.Dispose();undo.RemoveAt(0);} }catch{} } }
     public void Undo()
     {
@@ -551,7 +551,7 @@ public sealed class RecordAnnotationLayer : Window
         RefreshDisplay();
     }
 
-    // ---- 屏上預覽（WPF，僅顯示不入影片） ----
+    // ---- On-Screen Preview (WPF, displays only still images, no video) ----
     void StartPreview(Point p)
     {
         ClearPreview();

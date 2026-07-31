@@ -173,8 +173,8 @@ public partial class MainViewModel : ObservableObject
         if (WriteHost.IsPrimaryInstance && _recovery.TryGetDraft(out var draft, out var meta))
         {
             var draftFileExists = meta.OriginalPath is not null && File.Exists(meta.OriginalPath);
-            // If the on-disk file content changed since the draft was written (真正的外部编辑，
-            // 通过哈希而非 mtime 判断——避免杀毒/索引器 touch 误伤), prefer the newer disk content.
+            // If the on-disk file content changed since the draft was written (a real external edit,
+            // detected by hash rather than mtime to avoid false positives from antivirus/indexer touches), prefer the newer disk content.
             if (draftFileExists && meta.FileHash is not null)
             {
                 var currentHash = Services.RecoveryService.HashFile(meta.OriginalPath);

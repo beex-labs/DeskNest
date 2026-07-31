@@ -23,9 +23,9 @@ using IoPath=System.IO.Path;
 namespace BeeX.DeskNest;
 
 /// <summary>
-/// 非線性剪輯器：膠片式時間軸（幀縮圖鋪滿、滾輪縮放、播放頭拖動、兩端修剪把手、播放頭分割），
-/// 全時間軸連續播放（跨片段自動切源），淡入淡出即時預覽；片段變速/旋轉/翻轉/調色、文字/浮水印，
-/// 由 ffmpeg 統一導出。旋轉/翻轉即時預覽；調色/變速於導出套用（預覽引擎限制）。
+/// Non-linear editor: Film-style timeline (full-screen frame thumbnails, scroll wheel zoom, playhead drag, trim handles at both ends, playhead split),
+/// Continuous playback across the entire timeline (with automatic source switching between clips), real-time preview with fade-in and fade-out; clip speed adjustment, rotation, flipping, and color grading; text and watermarks,
+/// Exported uniformly using FFmpeg. Rotation/flipping with real-time preview; color grading/speed adjustment applied during export (due to preview engine limitations).
 /// </summary>
 public sealed partial class VideoEditorWindow : Window
 {
@@ -34,15 +34,15 @@ public sealed partial class VideoEditorWindow : Window
         public string Source="";
         public double SrcDuration; public bool HasAudio; public int SrcW,SrcH;
         public double In,Out;
-        // 速度
+        // Speed
         public double Speed=1; public bool PreservePitch=true; public bool MuteAfterSpeed;
-        // 畫面
+        // Screen
         public int Rotate; public bool FlipH,FlipV;
-        public double CropL,CropT,CropR,CropB;   // 0..0.9 各邊裁切比例
-        // 調色
+        public double CropL,CropT,CropR,CropB;   // 0..0.9 Cutting ratios for each side
+        // Color Grading
         public double Exposure; public double Temperature; public double TintV; public double Shadows; public double Highlights; public double Sharpen;
         public double Brightness; public double Contrast=1; public double Saturation=1;
-        // 音頻
+        // Audio
         public bool Mute; public double Volume=1; public double FadeIn; public double FadeOut; public bool Denoise;
         public double OutDuration=>Math.Max(0.02,(Out-In)/Math.Max(0.02,Speed));
         public string Name=>IoPath.GetFileNameWithoutExtension(Source);
@@ -57,14 +57,14 @@ public sealed partial class VideoEditorWindow : Window
     readonly List<ImgOv> imgs=new();
     EditClip? sel;
 
-    // 轉場 / 背景音樂 / 時間戳
-    int transitionType;            // 0=無 1=疊化
+    // Transitions / Background Music / Timestamps
+    int transitionType;            // 0 = None; 1 = Stacking
     double transitionDur=0.5;
     string? bgmPath; double bgmVolume=0.8; double bgmIn; double bgmDur;
     bool showTimestamp;
-    // 導出設定
+    // Export Settings
     string expFormat="mp4"; int expScaleH; int expFps=30; int expQuality=1; string? expPath; int expBitrateK;
-    // 專案
+    // Project
     string? projectPath;
 
     readonly string outputDir;
@@ -81,7 +81,7 @@ public sealed partial class VideoEditorWindow : Window
     Image? playIcon;
     WrapPanel propPanel=new();
 
-    // 時間軸
+    // Timeline
     ScrollViewer timelineScroll=new(){HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,VerticalScrollBarVisibility=ScrollBarVisibility.Disabled,Background=new SolidColorBrush(Color.FromRgb(16,23,40))};
     Canvas timelineCanvas=new(){Height=104,Background=Brushes.Transparent};
     System.Windows.Shapes.Line playhead=new(){Stroke=Brushes.White,StrokeThickness=2,Y1=0,Y2=104};
@@ -89,8 +89,8 @@ public sealed partial class VideoEditorWindow : Window
     Border durBadge=new(){Background=new SolidColorBrush(Color.FromArgb(210,40,40,40)),CornerRadius=new CornerRadius(9),Padding=new Thickness(8,2,8,2),VerticalAlignment=VerticalAlignment.Center};
     TextBlock durText=new(){Foreground=Brushes.White,FontSize=12,FontWeight=FontWeights.Bold};
     const double StripH=76, StripTop=14;
-    double pps=60;                 // 像素/秒（滾輪縮放）
-    double globalPos;              // 全域播放頭（秒）
+    double pps=60;                 // Pixels per second (scroll wheel zoom)
+    double globalPos;              // Total Playback Time (seconds)
     double totalDur;
 
     Border exportOverlay=new(){Background=new SolidColorBrush(Color.FromArgb(210,10,15,26)),Visibility=Visibility.Collapsed};
@@ -112,7 +112,7 @@ public sealed partial class VideoEditorWindow : Window
         playTimer.Tick+=(_,_)=>{try{OnTick();}catch{}};
         player.MediaOpened+=(_,_)=>{try{OnMediaOpened();}catch{}};
         player.MediaEnded+=(_,_)=>{try{OnMediaEnded();}catch{}};
-        player.MediaFailed+=(_,_)=>{ /* 忽略解碼失敗，保持存活 */ };
+        player.MediaFailed+=(_,_)=>{ /* Ignore decoding failure; stay alive */ };
         SizeChanged+=(_,_)=>{try{RenderOverlays();}catch{}};
         dispHandler=(s,e)=>{ e.Handled=true; if(!errShown){errShown=true;try{System.Windows.MessageBox.Show(this,"剪輯器發生錯誤（已攔截，程式未崩潰）：\n"+e.Exception.Message);}catch{}} };
         try{System.Windows.Application.Current.DispatcherUnhandledException+=dispHandler;}catch{}
@@ -134,7 +134,7 @@ public sealed partial class VideoEditorWindow : Window
         previewHost.Children.Add(overlayCanvas);
         Grid.SetRow(previewHost,0);grid.Children.Add(previewHost);
 
-        // 傳輸列（自動換行）
+        // Transmission Column (Automatic Line Breaks)
         playIcon=Ico("player-play");
         playBtn=new Button{Content=playIcon,Height=32,MinWidth=40,Margin=new Thickness(3,2,3,2),Padding=new Thickness(10,0,10,0),Background=new SolidColorBrush(Color.FromArgb(90,255,255,255)),BorderThickness=new Thickness(0),Cursor=Cursors.Hand};
         playBtn.Click+=(_,_)=>TogglePlay();
@@ -157,7 +157,7 @@ public sealed partial class VideoEditorWindow : Window
         foreach(var c in new UIElement[]{playBtn,fbBtn,ffBtn,timeText,splitBtn,delBtn,dupBtn,mergeBtn,lBtn,rBtn,addBtn,undoBtn,redoBtn,zoomOut,zoomIn,projBtn,durBadge})transport.Children.Add(c);
         Grid.SetRow(transport,1);grid.Children.Add(transport);
 
-        // 膠片時間軸
+        // Film Timeline
         timelineCanvas.Children.Add(playhead);
         playheadKnob.Points=new PointCollection{new Point(-6,0),new Point(6,0),new Point(0,10)};
         timelineCanvas.Children.Add(playheadKnob);
@@ -207,7 +207,7 @@ public sealed partial class VideoEditorWindow : Window
         return b;
     }
 
-    // tabler SVG 圖標按鈕（圖標已內置到 Assets/Icons，不依賴外部 tabler 資料夾）
+    // tabler SVG icon buttons (icons are built into Assets/Icons and do not rely on an external tabler folder)
     Image Ico(string name,double size=18)=>new(){Source=SvgIcon.Load(name,size,Brushes.White),Width=size,Height=size,VerticalAlignment=VerticalAlignment.Center};
     Button IconBtn(string icon,string? text,Action onClick,double iconSize=18)
     {
@@ -220,7 +220,7 @@ public sealed partial class VideoEditorWindow : Window
         return b;
     }
 
-    // ---- 片段管理 ----
+    // ---- Clip Management ----
     void ImportClip()
     {
         var dlg=new Microsoft.Win32.OpenFileDialog{Filter="影片|*.mp4;*.mov;*.mkv;*.avi;*.webm|所有檔案|*.*"};
@@ -232,7 +232,7 @@ public sealed partial class VideoEditorWindow : Window
         clips.Add(c);
         if(select||sel==null)sel=c;
         RebuildTimeline();
-        // 後台探測時長/音軌/尺寸，避免阻塞 UI 造成白屏
+        // Check duration, audio tracks, and file size in the background to prevent UI blocking and a blank screen
         System.Threading.Tasks.Task.Run(()=>
         {
             var (dur,aud,w,h)=FfmpegService.Probe(path);
@@ -276,7 +276,7 @@ public sealed partial class VideoEditorWindow : Window
         local=0;return clips.Count-1;
     }
 
-    // ---- 播放（跨片段連續） ----
+    // ---- Play (Continuous Across Clips) ----
     void TogglePlay(){ if(playing)Pause();else Play(); }
     void Play()
     {
@@ -336,7 +336,7 @@ public sealed partial class VideoEditorWindow : Window
     }
     static string Fmt(double s){s=Math.Max(0,s);return $"{(int)(s/60):00}:{(int)(s%60):00}.{(int)((s%1)*10)}";}
 
-    // ---- 預覽變換 / 淡入淡出 / 調色 ----
+    // ---- Preview Transitions / Fade In/Out / Color Grading ----
     void ApplyPreviewTransform()
     {
         if(curIdx<0||curIdx>=clips.Count)return;var c=clips[curIdx];
@@ -362,7 +362,7 @@ public sealed partial class VideoEditorWindow : Window
         fadeRect.Opacity=Math.Max(0,Math.Min(1,op));
     }
 
-    // ---- 疊加預覽 ----
+    // ---- Overlay Preview ----
     void RenderOverlays()
     {
         overlayCanvas.Children.Clear();

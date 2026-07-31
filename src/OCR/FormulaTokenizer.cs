@@ -6,8 +6,8 @@ using YamlDotNet.RepresentationModel;
 namespace BeeX.OCR;
 
 /// <summary>
-/// PP-FormulaNet（UniMERNet/Nougat 系）tokenizer 的解码器。
-/// 词表和特殊 token 内嵌在模型目录的 inference.yml 中，token 采用 GPT-2 风格 ByteLevel BPE 表示。
+/// Decoder for the PP-FormulaNet (UniMERNet/Nougat family) tokenizer.
+/// The vocabulary and special tokens are embedded in inference.yml in the model directory; tokens use GPT-2 style ByteLevel BPE representation.
 /// </summary>
 internal sealed partial class FormulaTokenizer
 {
@@ -126,7 +126,7 @@ internal sealed partial class FormulaTokenizer
             : null;
     }
 
-    /// <summary>GPT-2 bytes_to_unicode 的逆映射：token 字符 → 原始字节。</summary>
+    /// <summary>Inverse of GPT-2 bytes_to_unicode: token char -> original byte.</summary>
     private static Dictionary<char, byte> BuildByteDecoder()
     {
         var byteToChar = new Dictionary<byte, char>(256);
@@ -157,14 +157,14 @@ internal sealed partial class FormulaTokenizer
         return decoder;
     }
 
-    /// <summary>对齐 PaddleX UniMERNetDecode.post_process 的核心行为：去掉中文 text 包裹并压缩 BPE 残留空格；
-    /// \text/\operatorname 等文本组内部的空格必须保留（否则 \text{hello world} 会变成 helloworld）。</summary>
+    /// <summary>Aligns the core behavior of PaddleX UniMERNetDecode.post_process: removes the Chinese text wrapper and compresses leftover BPE spaces;
+    /// spaces inside text groups like \text/\operatorname must be preserved (otherwise \text{hello world} becomes helloworld).</summary>
     private static string PostProcess(string text)
     {
         text = ChineseTextWrapPattern().Replace(text, match => match.Groups[1].Value).Replace("\"", "");
         text = text.Trim();
 
-        // 先把文本组整体换成占位符，保护内部空格不被下面的空格压缩波及
+        // First replace whole text groups with placeholders, protecting inner spaces from the space compression below
         var protectedGroups = new List<string>();
         text = TextGroupPattern().Replace(text, match =>
         {

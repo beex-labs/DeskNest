@@ -47,7 +47,7 @@ public class LyricsMatchingTests
     [Fact]
     public void MatchScore_SubstringTitleMatch_ShouldReturnMediumScore()
     {
-        // "晴天 Remix" contains "晴天"
+        // "Sunny Day Remix" features "Sunny Day"
         var score = LyricsMatching.MatchScore("晴天", "artist", "晴天 Remix", "artist");
         score.Should().BeGreaterThan(0);
     }
@@ -126,7 +126,7 @@ public class LyricsMatchingTests
     {
         var lrc = "[00:12.34]故事的小黄花";
         var score = LyricsMatching.MetadataScore("晴天", "周杰倫", "晴天", lrc);
-        // Should use fallbackName "晴天" for title matching
+        // Should use the fallback name "Sunny Day" for title matching
         score.Should().NotBe(int.MinValue);
     }
 

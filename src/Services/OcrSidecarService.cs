@@ -7,17 +7,17 @@ using IoPath=System.IO.Path;
 namespace BeeX.DeskNest;
 
 /// <summary>
-/// 管理 OCR 双侧车进程（ocr\BeeX_OCR.exe 文字、ocr\BeeX_Formula.exe 公式）。
-/// 文字侧车用 MKL 运行时（oneDNN 加速），公式侧车用 openblas 运行时
-/// （PP-FormulaNet 在 oneDNN 内核下必崩），两者共用 ocr\models 模型目录。
-/// 侧车常驻以复用已加载的模型；行协议见 BeeX_OCR 的 OcrCli.RunServeLoop。
+/// Manages the two OCR sidecar processes (ocr\BeeX_OCR.exe for text, ocr\BeeX_Formula.exe for formulas).
+/// The text sidecar uses the MKL runtime (oneDNN acceleration); the formula sidecar uses the openblas runtime
+/// (PP-FormulaNet always crashes under the oneDNN kernel). Both share the ocr\models model directory.
+/// Sidecars stay resident to reuse the loaded models; for the line protocol see OcrCli.RunServeLoop in BeeX_OCR.
 /// </summary>
 static class OcrSidecarService
 {
     sealed class Sidecar(string exeName,string serveRole)
     {
         public readonly object Gate=new();
-        // AppData 安装目录优先（在线安装），兼容 exe 旁的 ocr\ 外挂目录（手动部署）
+        // Prefer the AppData install directory (online install); also compatible with the ocr\ side directory next to the exe (manual deployment)
         public string ExePath
         {
             get
@@ -110,7 +110,7 @@ static class OcrSidecarService
         });
     }
 
-    /// <summary>后台预热文字侧车（截图框选期间加载模型）；公式侧车按需启动。</summary>
+    /// <summary>Warms up the text sidecar in the background (loads the model during screenshot selection); the formula sidecar starts on demand.</summary>
     public static void WarmUp()
     {
         if(!File.Exists(OcrSidecar.ExePath))return;
@@ -136,7 +136,7 @@ static class OcrSidecarService
             WorkingDirectory=IoPath.GetDirectoryName(sidecar.ExePath)!
         };
         var process=Process.Start(info)??throw new InvalidOperationException("OCR 元件啟動失敗。");
-        // 等待 READY（首次加载模型约数秒）
+        // Wait for READY (loading the model the first time takes a few seconds)
         var line=process.StandardOutput.ReadLine();
         if(line==null||!line.Contains("READY",StringComparison.Ordinal))
         {

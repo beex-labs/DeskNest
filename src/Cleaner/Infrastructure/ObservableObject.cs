@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 namespace BeeXCleaner.Infrastructure;
 
 /// <summary>
-/// 轻量级 INotifyPropertyChanged 基类。
+/// A lightweight base class for `INotifyPropertyChanged`.
 /// </summary>
 public abstract class ObservableObject : INotifyPropertyChanged
 {

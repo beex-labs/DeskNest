@@ -6,7 +6,7 @@ namespace BeeX.DeskNest.Tests.Services;
 
 public class LyricsParserTests
 {
-    // ---- Parse: 标准 LRC 时间戳 ----
+    // ---- Parse: Standard LRC Timestamps ----
 
     [Fact]
     public void Parse_StandardTimestamp_ShouldParseCorrectly()

@@ -14,7 +14,7 @@ using IoPath=System.IO.Path;
 
 namespace BeeX.DeskNest;
 
-/// <summary>剪輯器導出：分頁設定（格式/解析度/幀率/品質/路徑/大小預估）+ 兩趟 ffmpeg 合成（全參數）+ 進度/取消/磁碟檢查。</summary>
+/// <summary>Editor Export: Page Settings (Format/Resolution/Frame Rate/Quality/Path/Estimated Size) + Two Runs of FFmpeg Composition (All Parameters) + Progress/Cancel/Disk Check. </summary>
 public sealed partial class VideoEditorWindow
 {
     static string F(double d)=>d.ToString("0.###",CultureInfo.InvariantCulture);
@@ -131,7 +131,7 @@ public sealed partial class VideoEditorWindow
             Stage($"處理片段 {i+1}/{cs.Count}…");
             var c=cs[i];double srcDur=Math.Max(0.05,c.Out-c.In);double outDur=c.OutDuration;
             string seg=IoPath.Combine(tmp,$"seg_{i}.mp4");
-            // 視頻濾鏡
+            // Video Filters
             var vf=new List<string>();
             if(c.CropL+c.CropR<0.95&&c.CropT+c.CropB<0.95&&(c.CropL>0||c.CropR>0||c.CropT>0||c.CropB>0))
                 vf.Add($"crop=iw*{F(1-c.CropL-c.CropR)}:ih*{F(1-c.CropT-c.CropB)}:iw*{F(c.CropL)}:ih*{F(c.CropT)}");

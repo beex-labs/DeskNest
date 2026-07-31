@@ -2,10 +2,10 @@ using System.Windows.Media;
 
 namespace BeeX.DeskNest;
 
-/// <summary>颜色格式转换辅助方法。</summary>
+/// <summary>Color format conversion helpers.</summary>
 internal static class ColorUtils
 {
-    /// <summary>将各种格式的颜色字符串规范化为 #RRGGBB，失败返回 fallback。</summary>
+    /// <summary>Normalizes color strings of various formats to #RRGGBB; returns fallback on failure.</summary>
     public static string NormalizeHexColor(string value, string fallback)
     {
         value = (value ?? "").Trim();
@@ -18,7 +18,7 @@ internal static class ColorUtils
         catch { return fallback; }
     }
 
-    /// <summary>RGB 转 HSV（H: 0-360, S: 0-1, V: 0-1）。</summary>
+    /// <summary>RGB to HSV (H: 0-360, S: 0-1, V: 0-1).</summary>
     public static void RgbToHsv(byte r, byte g, byte b, out double h, out double s, out double v)
     {
         double rf = r / 255.0, gf = g / 255.0, bf = b / 255.0;
@@ -32,7 +32,7 @@ internal static class ColorUtils
         if (h < 0) h += 360;
     }
 
-    /// <summary>HSV 转 WPF Color（H: 0-360, S: 0-1, V: 0-1）。</summary>
+    /// <summary>HSV to WPF Color (H: 0-360, S: 0-1, V: 0-1).</summary>
     public static System.Windows.Media.Color HsvToColor(double h, double s, double v)
     {
         h = ((h % 360) + 360) % 360;

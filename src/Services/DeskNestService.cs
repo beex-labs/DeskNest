@@ -28,7 +28,7 @@ public sealed partial class DeskNestService : IDisposable
     WindowTransparencyWindow? transparencyWindow;
     BeeXCleaner.CleanerWindow? cleanerWindow;
     SearchPaletteWindow? searchPalette;
-    /// <summary>自研全盤文件索引（MFT/USN，Everything 原理復刻），供 Ctrl+Q 統一搜索窗使用</summary>
+    /// <summary>Whole-disk file-name index (MFT/USN) used by the Ctrl+Q unified search window.</summary>
     public FileIndexService FileIndex { get; } = new();
     public WindowTransparencyService Transparency { get; } = new();
     DispatcherTimer? clipboardTimer,saveTimer;string lastClipboard="",lastClipboardImageHash="",lastClipboardFileSignature="";readonly HashSet<Guid> reminded=[];bool sessionLocked;
@@ -59,10 +59,10 @@ public sealed partial class DeskNestService : IDisposable
     public void ShowControl(){if(control is null||!control.IsLoaded)control=new ControlWindow(this);control.RefreshList();control.RefreshFeatures();Localization.Apply(control,State.Language);control.Show();control.Activate();}
     public void ShowSettings(){if(settings is null||!settings.IsLoaded)settings=new SettingsWindow(this);settings.LoadState();settings.Show();settings.Activate();}
     public void ShowWindowTransparency(){if(transparencyWindow is null||!transparencyWindow.IsLoaded)transparencyWindow=new WindowTransparencyWindow(this,Transparency);transparencyWindow.ShowTool();}
-    /// <summary>Ctrl+Q 全局統一搜索窗（原快速啟動格子的繼任者）</summary>
+    /// <summary>Ctrl+Q global unified search window (successor to the former quick-launch grid).</summary>
     public void ShowSearchPalette(){if(searchPalette is null||!searchPalette.IsLoaded)searchPalette=new SearchPaletteWindow(this);searchPalette.ShowPalette();}
-    // BeeX 系统清理组件：卸载程序、清理 HKLM / Program Files 残留需要管理员权限.
-    // 已提权则进程内打开；未提权则以管理员身份重新拉起自身 --cleaner 独立模式；UAC 取消则退回非提权打开。
+    // BeeX system cleanup component: uninstalling programs and cleaning HKLM / Program Files residues require administrator rights.
+    // If already elevated, open it in-process; otherwise relaunch self as administrator in standalone --cleaner mode; if UAC is cancelled, fall back to a non-elevated open.
     public void ShowCleaner()
     {
         if(IsElevated())
@@ -78,7 +78,7 @@ public sealed partial class DeskNestService : IDisposable
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo{FileName=exe,Arguments="--cleaner",UseShellExecute=true,Verb="runas"});
                 return;
             }
-            catch(System.ComponentModel.Win32Exception){/* 用户取消了 UAC，退回进程内打开 */}
+            catch(System.ComponentModel.Win32Exception){/* The user disabled UAC and reverted to opening within the process. */}
             catch{}
         }
         OpenCleanerInProcess();
@@ -101,7 +101,7 @@ public sealed partial class DeskNestService : IDisposable
     }
     public void MinimizeAllTransparentWindows(){if(Transparency.HasModifiedWindows)Transparency.MinimizeAllTransparent();}
     public void ApplyPreferences(bool persist=true){SyncRuntimeDefaults();control?.ApplyPreferences();control?.RefreshFeatures();settings?.ApplyPreferences();foreach(var nest in State.Nests){nest.FontFamily=ContentFontFamily();nest.FontSize=nest.Kind==NestKind.WorkTimer?Math.Max(20,ContentFontSize()):ContentFontSize();nest.FontColor=State.GlobalFontColor;}foreach(var w in windows.Values)w.ApplyPreferences();if(control!=null){Localization.ApplyFont(control,InterfaceFontFamily(),InterfaceFontSize());WindowRegionHelper.ApplyDeferred(control,State.CornerRadius);}if(settings!=null){Localization.ApplyFont(settings,InterfaceFontFamily(),InterfaceFontSize());WindowRegionHelper.ApplyDeferred(settings,State.CornerRadius);}ApplyTrayTheme();ApplyFloatingBallVisibility();if(floatingBall is { IsLoaded:true })floatingBall.ApplyPreferences();if(transparencyWindow is { IsLoaded:true })transparencyWindow.ApplyTheme();foreach(var w in noteWindows.Values.ToList())w.RefreshHostTheme();if(persist)Save();}
-    /// <summary>把設定頁的默認值同步給截圖覆蓋層/錄屏工具等靜態消費點</summary>
+    /// <summary>Pushes the settings-page defaults to static consumers such as the screenshot overlay and screen-recording tool.</summary>
     void SyncRuntimeDefaults(){ScreenCaptureOverlay.DefaultFormat=State.CaptureDefaultFormat;ScreenCaptureOverlay.CopyOnSave=State.CaptureCopyOnSave;RecordingController.DefaultFps=State.RecordingDefaultFps;RecordingController.DefaultCountdownSec=State.RecordingCountdownSec;}
     public void SetLanguage(string language){State.Language=language;Localization.CurrentLanguage=language;control?.RefreshLanguage();settings?.RefreshLanguage();foreach(var w in windows.Values)w.RefreshLanguage();ApplyTrayLanguage(language);if(noteWindows.Count>0)try{BeexWrite.Localization.Strings.Instance.LoadLocale(BeexWrite.WriteHost.WriteDataDirectory,WriteLocale());}catch{}Save();}
     public void SetHotkey(string command,string shortcut){foreach(var key in State.Hotkeys.Keys.ToList())if(key!=command&&State.Hotkeys[key].Equals(shortcut,StringComparison.OrdinalIgnoreCase))State.Hotkeys[key]="";State.Hotkeys[command]=shortcut;RebuildHotkeys();control?.RefreshShortcutTooltips();Save();}
@@ -130,14 +130,14 @@ public sealed partial class DeskNestService : IDisposable
         State.FloatingBallOpacity=State.WidgetOpacity;
         ApplyPreferences();
     }
-    // ---- 引導模式：每台新電腦（機器指紋不在 state.json 記錄中）首啟觸發一次，完成或跳過後永不再觸發 ----
+    // ---- Onboarding mode: triggered once on first launch for each new machine (whose fingerprint is not yet recorded in state.json); never triggers again after completing or skipping ----
     public static string MachineFingerprint(){try{using var key=Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Cryptography");if(key?.GetValue("MachineGuid") is string guid&&!string.IsNullOrWhiteSpace(guid))return guid.Trim();}catch{}return Environment.MachineName+"|"+Environment.UserName;}
     bool NeedsOnboarding()=>!State.OnboardingSeenMachines.Contains(MachineFingerprint(),StringComparer.OrdinalIgnoreCase);
     void MarkOnboardingSeen(){var id=MachineFingerprint();if(!State.OnboardingSeenMachines.Contains(id,StringComparer.OrdinalIgnoreCase))State.OnboardingSeenMachines.Add(id);Save();}
     void ShowOnboarding(){var wizard=new OnboardingWindow(this);wizard.Show();wizard.Activate();}
-    /// <summary>引導可選的格子種類：完成時只收斂這些種類，其餘種類（映射資料夾等）不受引導影響</summary>
+    /// <summary>Widget kinds the onboarding may pick: on completion only these kinds are reconciled; other kinds (mapped folders, etc.) are unaffected by onboarding.</summary>
     public static readonly NestKind[] OnboardingKinds=[NestKind.Todo,NestKind.Music,NestKind.Weather,NestKind.Clock,NestKind.Note,NestKind.Capture];
-    /// <summary>引導完成：套用語言/主題；勾選的種類補建並顯示，未勾選的既有格子只隱藏不刪除（保護遷移用戶資料），之後打開主控制台。</summary>
+    /// <summary>Onboarding finished: apply language/theme; checked kinds are created and shown, unchecked existing widgets are only hidden (not deleted, to protect migrating users' data), then open the main console.</summary>
     public void CompleteOnboarding(string language,string theme,IReadOnlyCollection<NestKind> starters)
     {
         MarkOnboardingSeen();
@@ -155,7 +155,7 @@ public sealed partial class DeskNestService : IDisposable
         if(starters.Count>0)ArrangeDesktopLayout();
         ShowControl();
     }
-    /// <summary>跳過引導：只記錄本機已看過，不建立任何格子。</summary>
+    /// <summary>Skip onboarding: only record that this machine has seen it, without creating any widgets.</summary>
     public void SkipOnboarding(){MarkOnboardingSeen();ShowControl();}
     public void ArrangeDesktopLayout()
     {
@@ -232,16 +232,16 @@ public sealed partial class DeskNestService : IDisposable
     public void HideFloatingBallForToday(){State.FloatingBallHiddenUntil=DateTime.Today.AddDays(1);ApplyFloatingBallVisibility();Save();}
     public void StartEasterEgg(){if(EasterEggGame.Running)return;new EasterEggGame(this).Start();}
     internal WidgetWindow? WindowOf(NestModel n)=>windows.GetValueOrDefault(n.Id);
-    /// <summary>彩蛋臨時平台：繞過單實例聚焦直接建 Note 格子，遊戲結束後由 Remove 刪除</summary>
+    /// <summary>Temporary easter-egg platform: bypasses single-instance focusing and directly creates a Note widget, removed via Remove when the game ends.</summary>
     internal NestModel AddEasterEggPlatform(int index){var n=new NestModel{Kind=NestKind.Note,Title=Localization.T("蜂巢平台",State.Language)+" "+(index+1),IsEasterEggTemp=true,Skin=State.Theme,Opacity=State.WidgetOpacity,FontFamily=ContentFontFamily(),FontSize=ContentFontSize(),FontColor=State.GlobalFontColor,Left=200+index*30,Top=200+index*30,Width=300,Height=200};State.Nests.Add(n);Open(n);return n;}
     internal void HideFloatingBallForGame(){if(floatingBall is {IsLoaded:true})floatingBall.Hide();}
     internal void EnsureEasterEggEntry(){control?.EnsureEasterEggButton();}
     void RebuildHotkeys(){hotkey?.Dispose();hotkey=null;if(hotkeySuspendCount>0)return;var actions=new Dictionary<string,(string Shortcut,Action Action)>{["Note"]=(State.Hotkeys.GetValueOrDefault("Note",""),()=>Add(NestKind.Note)),["Todo"]=(State.Hotkeys.GetValueOrDefault("Todo",""),()=>Add(NestKind.Todo)),["MapFolder"]=(State.Hotkeys.GetValueOrDefault("MapFolder",""),AddFolder),["Managed"]=(State.Hotkeys.GetValueOrDefault("Managed",""),AddManagedFiles),["CaptureFolder"]=(State.Hotkeys.GetValueOrDefault("CaptureFolder",""),OpenCaptureFolder),["QuickNote"]=(State.Hotkeys.GetValueOrDefault("QuickNote",""),()=>Add(NestKind.Capture)),["Music"]=(State.Hotkeys.GetValueOrDefault("Music",""),()=>Add(NestKind.Music)),["Clock"]=(State.Hotkeys.GetValueOrDefault("Clock",""),()=>Add(NestKind.Clock)),["Screenshot"]=(State.Hotkeys.GetValueOrDefault("Screenshot","Ctrl + Alt + A"),()=>CaptureScreen()),["ToggleAll"]=(State.Hotkeys.GetValueOrDefault("ToggleAll","Ctrl + Alt + B"),ToggleAll),["CollapseAll"]=(State.Hotkeys.GetValueOrDefault("CollapseAll",""),ToggleCollapseAll),["Weather"]=(State.Hotkeys.GetValueOrDefault("Weather",""),()=>Add(NestKind.Weather)),["PinText"]=(State.Hotkeys.GetValueOrDefault("PinText","Ctrl + Alt + T"),PinClipboardText),["MinimizeTransparent"]=(State.Hotkeys.GetValueOrDefault("MinimizeTransparent","Alt + X"),MinimizeAllTransparentWindows),["TranslateScreenshot"]=(State.Hotkeys.GetValueOrDefault("TranslateScreenshot","Ctrl + Alt + Q"),CaptureScreenForTranslation),["Launcher"]=(State.Hotkeys.GetValueOrDefault("Launcher","Ctrl + Q"),ShowSearchPalette)};hotkey=new HotkeyWindow(actions);}
-    /// <summary>供編輯器等焦點窗口使用：暫時註銷全局熱鍵，避免與編輯器快捷鍵衝突（引用計數）。</summary>
+    /// <summary>For focus windows such as the editor: temporarily unregister global hotkeys to avoid clashing with the editor's shortcuts (reference-counted).</summary>
     public void SuspendGlobalHotkeys(){hotkeySuspendCount++;if(hotkeySuspendCount==1)RebuildHotkeys();}
     public void ResumeGlobalHotkeys(){if(hotkeySuspendCount==0)return;hotkeySuspendCount--;if(hotkeySuspendCount==0)RebuildHotkeys();}
 
-    // ---- BeexWrite Markdown 隨記筆記 ----
+    // ---- BeexWrite Markdown quick notes ----
     public string NotesDirectory=>BeexWrite.WriteHost.NotesDirectory;
     string WriteLocale()=>State.Language switch{"zh-CN"=>"zh-CN","en-US"=>"en",_=>"zh-TW"};
     void InitWriteHost()
@@ -251,7 +251,7 @@ public sealed partial class DeskNestService : IDisposable
         BeexWrite.WriteHost.SuspendHostHotkeys=SuspendGlobalHotkeys;
         BeexWrite.WriteHost.ResumeHostHotkeys=ResumeGlobalHotkeys;
     }
-    /// <summary>在筆記目錄創建一個空的 Markdown 筆記文件，返回完整路徑。</summary>
+    /// <summary>Creates an empty Markdown note file in the notes directory and returns its full path.</summary>
     public string CreateMarkdownNote()
     {
         Directory.CreateDirectory(NotesDirectory);
@@ -259,7 +259,7 @@ public sealed partial class DeskNestService : IDisposable
         File.WriteAllText(path,"");
         return path;
     }
-    /// <summary>打開（或激活已打開的）Markdown 筆記編輯窗口；同一筆記只允許一個窗口。</summary>
+    /// <summary>Opens (or activates an already-open) Markdown note editor window; only one window is allowed per note.</summary>
     public void OpenMarkdownNote(string path,Action<string>? onSaved=null,Action? onClosed=null)
     {
         if(noteWindows.TryGetValue(path,out var existing)){if(existing.WindowState==WindowState.Minimized)existing.WindowState=WindowState.Normal;existing.Activate();return;}
@@ -270,7 +270,7 @@ public sealed partial class DeskNestService : IDisposable
         w.Show();
         w.Activate();
     }
-    /// <summary>讀取 Markdown 文檔首個非空行作為列表預覽（剥離標題/列表等前綴）。</summary>
+    /// <summary>Reads the first non-empty line of a Markdown document as a list preview (stripping heading/list prefixes).</summary>
     public static string MarkdownFirstLine(string path)
     {
         try
@@ -291,7 +291,7 @@ public sealed partial class DeskNestService : IDisposable
     }
     public void ResetPreferences(){var keepStartup=State.StartWithWindows;State.WidgetOpacity=.5;State.Theme="Acrylic";State.ThemePreset="Clear";State.GlobalFontFamily="Microsoft JhengHei UI";State.GlobalFontSize=14;State.GlobalFontColor="#0D1321";State.InterfaceFontFamily=State.GlobalFontFamily;State.InterfaceFontSize=14;State.ContentFontFamily=State.GlobalFontFamily;State.ContentFontSize=14;State.CornerRadius=18;State.IconSize=30;State.ItemSpacing=10;State.ShowFileExtensions=true;State.ShowFloatingBall=true;State.FloatingBallSnapToEdge=true;State.ShowCollapsedLogo=true;State.ShowCollapsedMusicPlayerLogo=true;State.FloatingBallOpacity=State.WidgetOpacity;State.FloatingBallHiddenUntil=null;State.StartWithWindows=keepStartup;ApplyPreferences();}
     static string? MultiOpenKey(NestKind kind)=>kind switch{NestKind.Note=>"Note",NestKind.Todo=>"Todo",NestKind.Folder=>"MapFolder",NestKind.ManagedFiles=>"Managed",NestKind.Capture=>"QuickNote",NestKind.Music=>"Music",NestKind.Clock=>"Clock",NestKind.Weather=>"Weather",NestKind.Tags=>"Tags",NestKind.SystemMonitor=>"SystemMonitor",NestKind.Countdown=>"Countdown",NestKind.WorkTimer=>"WorkTimer",_=>null};
-    // 默认所有组件单实例：仅当该功能在设置中开启「允许多开」时才可建立多个。
+    // All components are single-instance by default: multiple instances are only allowed when "allow multi-open" is enabled for that feature in settings.
     public bool AllowMultiOpen(NestKind kind){var key=MultiOpenKey(kind);return key==null||State.ToolButtonMultiOpen.GetValueOrDefault(key,false);}
     bool TryFocusSingleton(NestKind kind){if(AllowMultiOpen(kind))return false;var existing=State.Nests.FirstOrDefault(n=>n.Kind==kind);if(existing==null)return false;SetVisible(existing,true);return true;}
     public void Add(NestKind kind)
@@ -319,7 +319,7 @@ public sealed partial class DeskNestService : IDisposable
     }
     void Open(NestModel n)
     {
-        // 字典里若残留已关闭/未加载的僵尸窗口，先清理再重建，避免 Show 无效
+        // If the dictionary still holds a closed/unloaded zombie window, clean it up before recreating, otherwise Show has no effect
         if (windows.TryGetValue(n.Id, out var existing))
         {
             if (!existing.IsLoaded || existing.AllowClose) windows.Remove(n.Id);
@@ -329,10 +329,10 @@ public sealed partial class DeskNestService : IDisposable
     }
     public void Remove(NestModel n)
     {
-        // 按 Id 查找当前真实 model，避免列表项持有陈旧引用时静默失败
+        // Look up the current real model by Id to avoid silent failure when a list item holds a stale reference
         var current = State.Nests.FirstOrDefault(x => x.Id == n.Id);
         if (current == null) { control?.RefreshList(); return; }
-        // 锁定组件也允许删除（用户已通过确认对话框表达删除意图）
+        // Locked components may still be deleted (the user has expressed deletion intent via the confirmation dialog)
         current.Locked = false;
         if (windows.Remove(current.Id, out var w)) { w.AllowClose = true; w.Close(); }
         State.Nests.Remove(current); Save(); control?.RefreshList(); settings?.RefreshFeatureNests();
@@ -345,7 +345,7 @@ public sealed partial class DeskNestService : IDisposable
         foreach(var pair in windows){
             var nest=State.Nests.FirstOrDefault(n=>n.Id==pair.Key);
             if(nest==null)continue;
-            // 锁定组件也参与显隐切换（锁定只防误操作，不阻止显隐）
+            // Locked components still take part in show/hide toggling (locking only prevents accidental operations, not show/hide)
             if(show){pair.Value.Show();pair.Value.Topmost=true;pair.Value.Activate();pair.Value.Topmost=nest.Pinned;}else pair.Value.Hide();
             nest.IsVisible=show;
         }
@@ -354,7 +354,7 @@ public sealed partial class DeskNestService : IDisposable
     public void ToggleCollapseAll()
     {
         if(EasterEggGame.Running)return;
-        // 彩蛋：首次點擊「摺疊／展開全部」觸發蜂巢小遊戲（只觸發一次，之後由主控台入口重玩）
+        // Easter egg: the first click on "collapse/expand all" triggers the hive mini-game (only once; afterwards it is replayed from the main console entry)
         if(!State.EasterEggUnlocked){StartEasterEgg();return;}
         var active=windows.Keys.Select(id=>State.Nests.FirstOrDefault(n=>n.Id==id)).Where(n=>n!=null&&n.IsVisible&&!n.Locked).Cast<NestModel>().ToList();
         if(active.Count==0)return;
@@ -369,8 +369,8 @@ public sealed partial class DeskNestService : IDisposable
     public IEnumerable<Rect> GetWidgetBounds(Guid exceptId)=>windows.Where(x=>x.Key!=exceptId&&x.Value.IsVisible).Select(x=>new Rect(x.Value.Left,x.Value.Top,x.Value.ActualWidth,x.Value.ActualHeight)).ToList();
     public void SetStartup(bool enabled)
     {
-        // 主程式已改為 requireAdministrator：提權程式寫 Run 鍵會被 Windows 登入時靜默跳過，
-        // 改用計劃任務（/RL HIGHEST）實現開機自啟；同時清掉舊版遺留的 Run 鍵。
+        // The main app now uses requireAdministrator: an elevated app writing the Run key is silently skipped by Windows at logon,
+        // so use a scheduled task (/RL HIGHEST) for startup instead; also clean up the legacy Run key.
         try { using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true); key?.DeleteValue("BeeX DeskNest", false); } catch { }
         try
         {
@@ -384,7 +384,7 @@ public sealed partial class DeskNestService : IDisposable
         State.StartWithWindows = enabled; Save();
     }
     public void CaptureScreen(Action? closed=null) { ScreenCaptureOverlay.Begin(ScreenshotDirectory,path => { try{if(System.Windows.Clipboard.ContainsImage()){var image=System.Windows.Clipboard.GetImage();if(image!=null){using var memory=new MemoryStream();var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(image));encoder.Save(memory);lastClipboardImageHash=Convert.ToHexString(SHA256.HashData(memory.ToArray()));}}}catch{}var capture=State.Nests.FirstOrDefault(n=>n.Kind==NestKind.Capture);if(capture!=null){capture.Captures.Insert(0,new CaptureItem{Text="螢幕截圖",ImagePath=path,Source="Manual"});TrimCaptures(capture);if(windows.TryGetValue(capture.Id,out var w))w.RefreshData();Save();} },closed,State.Language); }
-    // 翻譯截圖：複用普通截圖覆蓋層，但框選完成後自動觸發覆蓋層內建的原位翻譯（保留選框，拖動/縮放自動重譯），不再關窗後另彈貼圖窗口
+    // Translation screenshot: reuses the normal screenshot overlay, but after selection automatically triggers the overlay's built-in in-place translation (keeps the selection; dragging/resizing re-translates automatically), instead of popping a separate pinned image window after closing
     public void CaptureScreenForTranslation() { ScreenCaptureOverlay.Begin(ScreenshotDirectory,path => { try{if(System.Windows.Clipboard.ContainsImage()){var image=System.Windows.Clipboard.GetImage();if(image!=null){using var memory=new MemoryStream();var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(image));encoder.Save(memory);lastClipboardImageHash=Convert.ToHexString(SHA256.HashData(memory.ToArray()));}}}catch{}var capture=State.Nests.FirstOrDefault(n=>n.Kind==NestKind.Capture);if(capture!=null){capture.Captures.Insert(0,new CaptureItem{Text="螢幕截圖",ImagePath=path,Source="Manual"});TrimCaptures(capture);if(windows.TryGetValue(capture.Id,out var w))w.RefreshData();Save();} },closed:null,language:State.Language,autoTranslateOnSelect:true); }
     public void PinClipboardText(){try{if(System.Windows.Clipboard.ContainsText()){var text=System.Windows.Clipboard.GetText();if(!string.IsNullOrWhiteSpace(text))TextPinWindow.Pin(text.Trim());}}catch{}}
     public void Exit() { transparencyWindow?.ShutdownTool();floatingBall?.Close();searchPalette?.Hide();FileIndex.Dispose();foreach (var w in windows.Values) { w.AllowClose = true; w.Close(); } tray!.Visible = false; System.Windows.Application.Current.Shutdown(); }

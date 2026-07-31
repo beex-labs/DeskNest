@@ -31,13 +31,13 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- 标题 -->
+        <!-- Title -->
         <StackPanel Grid.Row="0" Margin="0,0,0,12">
             <TextBlock Text="{Binding DisplayName}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap"/>
             <TextBlock Text="{Binding PublisherDisplay}" Foreground="{StaticResource TextSecondary}" Margin="0,2,0,0"/>
         </StackPanel>
 
-        <!-- 详情表 -->
+        <!-- Details Table -->
         <Border Grid.Row="1" Background="White" CornerRadius="6"
                 BorderBrush="{StaticResource BorderColor}" BorderThickness="1" Padding="16">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -84,7 +84,7 @@
             </ScrollViewer>
         </Border>
 
-        <!-- 底部按钮 -->
+        <!-- Bottom Button -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
             <Button Content="打开安装目录" Style="{StaticResource GhostButton}" Click="OnOpenFolder" Margin="0,0,8,0"/>
             <Button Content="定位注册表" Style="{StaticResource GhostButton}" Click="OnOpenRegistry" Margin="0,0,8,0"/>

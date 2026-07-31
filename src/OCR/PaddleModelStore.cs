@@ -4,8 +4,8 @@ namespace BeeX.OCR;
 
 internal static class PaddleModelStore
 {
-    // 检测/识别均用 mobile（截屏印刷体精度与 server 几无差距，识别速度快 10 倍以上，
-    // 大截图从 10s+ 降到 1-2s；server_rec 在手写/艺术字上更强但截屏场景用不到）
+    // Both detection and recognition use mobile (for printed screenshot text the accuracy is nearly identical to server, but 10x+ faster;
+    // a large screenshot drops from 10s+ to 1-2s; server_rec is stronger on handwriting/artistic fonts but that is not needed for screenshots)
     private const string DetectionModelName = "PP-OCRv5_mobile_det";
     private const string RecognitionModelName = "PP-OCRv5_mobile_rec";
     private const string FormulaModelName = "PP-FormulaNet_plus-S";
@@ -31,14 +31,14 @@ internal static class PaddleModelStore
 
     private static string GetModelsRoot()
     {
-        // 发布布局：exe 同目录 models\
+        // Release layout: models\ in the same directory as the exe
         string releaseRoot = Path.Combine(AppContext.BaseDirectory, "models");
         if (Directory.Exists(releaseRoot))
         {
             return releaseRoot;
         }
 
-        // 开发布局：从 bin 目录向上找项目根下的 models-src\
+        // Dev layout: search upward from the bin directory for models-src\ under the project root
         DirectoryInfo? current = new(AppContext.BaseDirectory);
         for (int depth = 0; depth < 6 && current != null; depth++)
         {

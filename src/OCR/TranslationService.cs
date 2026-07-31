@@ -20,7 +20,7 @@ internal sealed class TranslationService
     private static readonly object DeepLLock = new();
 
     /// <summary>
-    /// 获取 DeepL API Key，优先级：用户 Key > 发行商 Key > null（回退 MyMemory）。
+    /// Gets the DeepL API key, priority: user key > publisher key > null (falls back to MyMemory).
     /// </summary>
     private static string? GetDeepLApiKey()
     {
@@ -29,7 +29,7 @@ internal sealed class TranslationService
         {
             if (_deepLKeyLoaded) return _cachedDeepLKey;
 
-            // 1. 优先：用户设置的 Key（从 config.json 读取）
+            // 1. Priority: user-set key (read from config.json)
             string? userKey = UserConfigHelper.ReadDeepLApiKey();
             if (!string.IsNullOrWhiteSpace(userKey))
             {
@@ -38,7 +38,7 @@ internal sealed class TranslationService
                 return _cachedDeepLKey;
             }
 
-            // 2. 发行商内置 Key（硬编码）
+            // 2. Publisher built-in key (hard-coded)
             const string PublisherKey = "448cb35d-6320-4ec4-9451-979a7c560b51:fx";
             if (!string.IsNullOrWhiteSpace(PublisherKey))
             {
@@ -47,7 +47,7 @@ internal sealed class TranslationService
                 return _cachedDeepLKey;
             }
 
-            // 3. 无 Key，回退 MyMemory
+            // 3. No key, fall back to MyMemory
             _cachedDeepLKey = null;
             _deepLKeyLoaded = true;
             return _cachedDeepLKey;
@@ -55,7 +55,7 @@ internal sealed class TranslationService
     }
 
     /// <summary>
-    /// 清除 DeepL Key 缓存，使下次调用 GetDeepLApiKey 时重新读取。
+    /// Clears the DeepL key cache so the next GetDeepLApiKey call re-reads it.
     /// </summary>
     public static void ClearDeepLKeyCache()
     {
@@ -103,7 +103,7 @@ internal sealed class TranslationService
 
     private static async Task<string> TranslateChunkAsync(string text, string sourceLanguageCode, string targetLanguageCode)
     {
-        // 1. 尝试 DeepL
+        // 1. Try DeepL
         string? deepLKey = GetDeepLApiKey();
         if (!string.IsNullOrEmpty(deepLKey))
         {
@@ -113,11 +113,11 @@ internal sealed class TranslationService
             }
             catch
             {
-                // DeepL 失败（额度耗尽、网络超时、服务器错误等），回退 MyMemory
+                // DeepL failed (quota exhausted, network timeout, server error, etc.), fall back to MyMemory
             }
         }
 
-        // 2. 兜底 MyMemory
+        // 2. Fallback MyMemory
         return await TranslateViaMyMemory(text, sourceLanguageCode, targetLanguageCode);
     }
 
@@ -133,7 +133,7 @@ internal sealed class TranslationService
             ["target_lang"] = targetLang
         };
 
-        // source_lang 可选，不传则 DeepL 自动检测
+        // source_lang is optional; if omitted, DeepL auto-detects
         if (!string.IsNullOrEmpty(sourceLang))
         {
             parameters["source_lang"] = sourceLang;
@@ -142,7 +142,7 @@ internal sealed class TranslationService
         using var content = new FormUrlEncodedContent(parameters);
         using HttpResponseMessage response = await Http.PostAsync("https://api-free.deepl.com/v2/translate", content);
 
-        // HTTP 456 表示 DeepL 额度耗尽
+        // HTTP 456 means the DeepL quota is exhausted
         if ((int)response.StatusCode == 456)
         {
             throw new InvalidOperationException("DeepL 翻译额度已耗尽。");
@@ -194,7 +194,7 @@ internal sealed class TranslationService
     }
 
     /// <summary>
-    /// 将内部语言代码映射为 DeepL API 语言代码（大写）。
+    /// Maps internal language codes to DeepL API language codes (uppercase).
     /// </summary>
     private static string MapToDeepLLangCode(string langCode)
     {

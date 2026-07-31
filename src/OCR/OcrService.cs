@@ -51,7 +51,7 @@ internal sealed class OcrService : IDisposable
         await Task.Run(() => GetEngine(languageTag));
     }
 
-    /// <summary>返回每个文本框的外接矩形和文本（供侧车 OCRPOS 命令使用）。</summary>
+    /// <summary>Returns the bounding rectangle and text of each text box (used by the sidecar OCRPOS command).</summary>
     public List<(int X, int Y, int Width, int Height, string Text)> RecognizeWithPositions(Bitmap bitmap)
     {
         PaddleOcrResult result = RunRaw(bitmap);
@@ -68,7 +68,7 @@ internal sealed class OcrService : IDisposable
         return blocks;
     }
 
-    /// <summary>返回带坐标的原始识别结果（供表格重建等需要位置信息的场景使用）。</summary>
+    /// <summary>Returns raw recognition results with coordinates (for scenarios that need position info, such as table reconstruction).</summary>
     internal PaddleOcrResult RunRaw(Bitmap bitmap)
     {
         PaddleOcrAll engine = GetEngine(null);
@@ -79,7 +79,7 @@ internal sealed class OcrService : IDisposable
         }
     }
 
-    /// <summary>对已转换的 Mat 执行原始识别（调用方负责 Mat 生命周期）。</summary>
+    /// <summary>Runs raw recognition on an already-converted Mat (the caller owns the Mat lifecycle).</summary>
     internal PaddleOcrResult RunRaw(Mat mat)
     {
         PaddleOcrAll engine = GetEngine(null);
@@ -101,8 +101,8 @@ internal sealed class OcrService : IDisposable
             best.ToInfo()
         };
 
-        // server 识别模型精度高：主结果足够强时直接采纳，避免深色/低对比截图无条件触发
-        // 多候选恢复管线（每个候选都是一次完整识别，是耗时大头，最多多跑 3 次）
+        // The server recognition model has high accuracy: when the primary result is strong enough, accept it directly to avoid unconditionally triggering
+        // the multi-candidate recovery pipeline on dark/low-contrast screenshots (each candidate is a full recognition pass, the main time cost, up to 3 extra runs)
         bool needsRecovery = best.Score < 70 || string.IsNullOrWhiteSpace(best.Text);
         if (!needsRecovery && (stats.LooksDark || stats.LowContrast))
         {
@@ -122,7 +122,7 @@ internal sealed class OcrService : IDisposable
                     best = current;
                 }
 
-                // 已拿到足够强的结果就提前退出，不再跑剩余候选
+                // Exit early once a strong-enough result is obtained; do not run the remaining candidates
                 if (OcrRecognitionScore.IsStrongResult(best.Text))
                 {
                     break;
@@ -235,14 +235,14 @@ internal sealed class OcrService : IDisposable
             }
             catch
             {
-                // GPU 运行时不可用，回退时报错（CUDA 构建无 CPU 库）
+                // GPU runtime unavailable; report an error on fallback (the CUDA build has no CPU library)
             }
         }
-        // CUDA 构建无 GPU 可用
+        // The CUDA build has no GPU available
         throw new InvalidOperationException(
             "此版本需要 NVIDIA GPU 和 CUDA 驱动。请安装 GPU 驱动，或使用 CPU 版本。");
 #else
-        // CPU 构建（MKL 或 openblas）：不使用 GPU
+        // CPU build (MKL or openblas): does not use the GPU
         return PaddleDevice.Blas(cpuMathThreadCount: Environment.ProcessorCount);
 #endif
     }
@@ -263,7 +263,7 @@ internal sealed class OcrService : IDisposable
         }
         catch
         {
-            // WMI 查询失败，保守回退 CPU
+            // WMI query failed; conservatively fall back to CPU
         }
         return false;
     }

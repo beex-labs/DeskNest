@@ -258,7 +258,7 @@ internal static class BeeXDialog
     private static Grid CreateShell(Window dialog, Window owner, string titleText)
     {
         var shell = new Grid();
-        // 標題欄物理 65px：無視 DPI 縮放，螢幕實測恆為 65px
+        // Title bar physical 65px: ignores DPI scaling; the screen measures a constant 65px
         var titleHeight = 65d;
         try { var scale = System.Windows.Media.VisualTreeHelper.GetDpi(owner ?? dialog).DpiScaleY; if (scale > 0) titleHeight = 65 / scale; } catch { }
         shell.RowDefinitions.Add(new RowDefinition { Height = new GridLength(titleHeight) });

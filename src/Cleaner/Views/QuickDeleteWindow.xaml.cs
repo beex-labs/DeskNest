@@ -16,20 +16,20 @@ public partial class QuickDeleteWindow : Window
     private string? _target;
     private bool _isFolder;
     private bool _busy;
-    private int _sizeGen; // 大小计算代际令牌：防止快速换目标后，旧目标的慢任务回写错位
+    private int _sizeGen; // Calculating the Size of Intergenerational Tokens: Preventing Misalignment in Slow Task Write-backs for Old Targets After Rapid Target Switching
 
     public QuickDeleteWindow() => InitializeComponent();
 
     private void OnPickFile(object sender, RoutedEventArgs e)
     {
-        if (_busy) return; // 删除进行中禁止更换目标：避免并发删除与状态被覆盖
+        if (_busy) return; // Do Not Change the Target While Deletion Is in Progress: To Prevent Concurrent Deletions and Overwriting of State
         var dlg = new OpenFileDialog { Title = "选择要删除的文件", CheckFileExists = true, Multiselect = false };
         if (dlg.ShowDialog(this) == true) SetTarget(dlg.FileName, isFolder: false);
     }
 
     private void OnPickFolder(object sender, RoutedEventArgs e)
     {
-        if (_busy) return; // 同上
+        if (_busy) return; // Ibid.
         var dlg = new OpenFolderDialog { Title = "选择要删除的文件夹", Multiselect = false };
         if (dlg.ShowDialog(this) == true) SetTarget(dlg.FolderName, isFolder: true);
     }
@@ -50,7 +50,7 @@ public partial class QuickDeleteWindow : Window
             catch { size = 0; }
             Dispatcher.Invoke(() =>
             {
-                // 仅当仍是当前目标的计算结果才回显，丢弃过时结果
+                // Only the result that is still the current target is displayed; outdated results are discarded.
                 if (gen == _sizeGen)
                     SizeText.Text = $"大小：约 {InstalledProgram.FormatSize(size)}";
             });
@@ -62,7 +62,7 @@ public partial class QuickDeleteWindow : Window
         if (string.IsNullOrWhiteSpace(_target)) return;
         var path = _target!;
 
-        // 安全护栏：网络盘/NAS 禁止；文件夹另需通过灾难性根目录硬拦截
+        // Security Barriers: Network drives/NAS are prohibited; folders must also be blocked via hard-coded rules at the root directory level.
         if (FileSystemUtil.IsNetworkPath(path))
         {
             MessageBox.Show(this, "网络盘 / NAS 路径不允许删除，仅限本机本地磁盘。", "无法删除",
@@ -75,7 +75,7 @@ public partial class QuickDeleteWindow : Window
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
-        // 文件级系统保护（6.5）：位于 Windows / System32 / SysWOW64 的文件禁止删除
+        // File-Level System Protection (6.5): Files in Windows/System32/SysWOW64 are protected from deletion
         if (!_isFolder && !UninstallService.IsSafeFileToDelete(path))
         {
             MessageBox.Show(this, "该文件位于操作系统关键目录（Windows / System32 / SysWOW64），已被保护，禁止删除。",
@@ -89,7 +89,7 @@ public partial class QuickDeleteWindow : Window
             return;
         }
 
-        // 云同步根目录警示（阶段 6）：本地路径但删除会同步到云端，不硬禁，给强提示
+        // Cloud Sync Root Directory Warning (Stage 6): Files in this local path will be synced to the cloud if deleted; do not enforce a hard ban, but display a strong warning.
         if (UninstallService.IsCloudSyncRoot(path))
         {
             var cloud = MessageBox.Show(this,
@@ -106,7 +106,7 @@ public partial class QuickDeleteWindow : Window
         if (confirm != MessageBoxResult.Yes) return;
 
         SetBusy(true);
-        // 接入清理会话：与其它不可逆删除一致留下审计痕迹，可在“清理历史”中查看
+        // Access cleanup sessions: As with other irreversible deletions, an audit trail is retained and can be viewed in "Cleanup History."
         var session = new CleanupSession(CleanupOperation.QuickDelete, new[] { path });
         DeleteResult result;
         try
@@ -169,7 +169,7 @@ public partial class QuickDeleteWindow : Window
         Cursor = busy ? System.Windows.Input.Cursors.Wait : null;
     }
 
-    /// <summary>删除进行中拦截关闭（含标题栏 X）：避免不可逆删除在后台继续且结果提示丢失。</summary>
+    /// <summary>Disable deletion-in-progress interception (including the title bar "X"): This prevents irreversible deletions from continuing in the background and ensures that result notifications are not lost. </summary>
     protected override void OnClosing(CancelEventArgs e)
     {
         if (_busy) e.Cancel = true;

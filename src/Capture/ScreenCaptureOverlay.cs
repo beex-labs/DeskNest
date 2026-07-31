@@ -37,7 +37,7 @@ public sealed partial class ScreenCaptureOverlay : Window
 
     readonly Canvas canvas=new();
     readonly Canvas outerCanvas=new();
-    // 框选原位翻译层：作为 canvas 子元素随 Crop() 一起渲染（复制/保存即得译文合成图）
+    // Select the in-place translation layer: It is rendered as a child element of the canvas along with the Crop() function (simply copy or save to obtain the composite image with the translation).
     readonly Canvas translationLayer=new(){IsHitTestVisible=false};
     bool translateMode;
     System.Threading.CancellationTokenSource? translateCts;
@@ -86,7 +86,7 @@ public sealed partial class ScreenCaptureOverlay : Window
     bool mosaicBrush;
     double mosaicBrushWidth=24;
     double borderWidth=3;
-    // 設定頁可改的默認值（由 DeskNestService 同步）：默認保存格式與「保存時同時複製」
+    // Default values that can be changed on the Settings page (synchronized by DeskNestService): Default save format and "Copy when saving"
     public static string DefaultFormat="png";
     public static bool CopyOnSave;
     string outputFormat=captureFormats.Contains(DefaultFormat)?DefaultFormat:"png";
@@ -138,7 +138,7 @@ public sealed partial class ScreenCaptureOverlay : Window
         Background=Brushes.Black;
         AllowsTransparency=false;
         Focusable=true;
-        // 框选界面禁用输入法：否则中文输入法会吞掉 Shift+C 等快捷键（注释文字框聚焦时有自己的输入上下文，不受影响）
+        // Disable the input method in the selected area: Otherwise, the Chinese input method will override shortcut keys such as Shift+C (the comment text box has its own input context when it has focus and is not affected).
         InputMethod.SetIsInputMethodEnabled(this,false);
 
         source=Grab(physical);
@@ -170,7 +170,7 @@ public sealed partial class ScreenCaptureOverlay : Window
         BuildSideBar();
         holdTimer.Tick+=(_,_)=>{if((GetAsyncKeyState(1)&0x8000)==0){holdTimer.Stop();return;}RefreshShot();};
         Content=outerCanvas;
-        // 提前预热 OCR 侧车，用户框选期间后台加载模型，点“截圖辨識”时基本即刻出结果
+        // Preload the OCR feature in the sidebar; the model loads in the background while the user selects the area, and results appear almost instantly when the user clicks “Screenshot Recognition.”
         OcrSidecarService.WarmUp();
 
         Loaded+=(_,_)=>{CW=ActualWidth;CH=ActualHeight;canvas.Width=CW;canvas.Height=CH;screen.Width=CW;screen.Height=CH;maskOuter.Rect=new Rect(0,0,CW,CH);UpdateDimMask(null);PreloadUia();Focus();};
@@ -301,7 +301,7 @@ public sealed partial class ScreenCaptureOverlay : Window
             return;
         }
         if(e.LeftButton!=MouseButtonState.Pressed)return;
-        // 翻译模式下开始拖动选区：先清掉旧译文避免错位残留，Up 时按新选区重译
+        // Start dragging the selection in translation mode: First, clear the old translation to avoid misalignment or residual text; while holding the Up arrow key, press the new selection to retranslate.
         if(translateMode&&(mode==CaptureMode.Moving||mode==CaptureMode.Resizing)&&translationLayer.Children.Count>0)ClearTranslation();
         if(mode==CaptureMode.Drawing)UpdateSelection(NormalizeRect(start,p));
         else if(mode==CaptureMode.Moving)
@@ -339,7 +339,7 @@ public sealed partial class ScreenCaptureOverlay : Window
             }
             else
             {
-                // 畫完立即顯示編輯把手（矩形/圓形四角、線條/箭頭端點），支持二次調整
+                // Editing handles (rectangular/circular corners, line/arrow endpoints) appear immediately after drawing, and allow for further adjustments.
                 SelectAnnotationForResize(activeAnnotation);
                 ShowToolbar();
             }
@@ -353,7 +353,7 @@ public sealed partial class ScreenCaptureOverlay : Window
         Cursor=selection.Visibility==Visibility.Visible&&annotationTool!=AnnotationTool.Select?CursorForAnnotationTool(annotationTool):Cursors.Cross;
         if(selectionRect.Width<4||selectionRect.Height<4){HideSelection();return;}
         ShowToolbar();
-        // 翻译模式下选区被移动/缩放：按新选区重新翻译
+        // Selection is moved or scaled in translation mode: Retranslate based on the new selection
         if(translateMode&&selectionRect!=translatedRect)
         {
             translateCts?.Cancel();
@@ -365,9 +365,9 @@ public sealed partial class ScreenCaptureOverlay : Window
 
     void Overlay_KeyDown(object sender,KeyEventArgs e)
     {
-        // 注释文字输入框聚焦时不抢快捷键（避免输入大写 C 误触 OCR）
+        // Do not capture keyboard shortcuts when the annotation text input field has focus (to prevent accidentally triggering OCR when typing a capital "C")
         if(e.OriginalSource is WpfTextBox)return;
-        // 输入法开启时按键会被吞成 ImeProcessed，需还原真实键值，否则 Shift+C 等快捷键失效
+        // When the input method is enabled, keystrokes are interpreted as `ImeProcessed`; you must restore the actual key values, otherwise shortcuts such as Shift+C will not work.
         var key=e.Key==Key.ImeProcessed?e.ImeProcessedKey:e.Key;
         if(key==Key.Escape){translateCts?.Cancel();Close();e.Handled=true;}
         else if(annotationTool!=AnnotationTool.ColorPicker&&(Keyboard.Modifiers&ModifierKeys.Shift)!=0&&key==Key.C){StartOcr();e.Handled=true;}
@@ -378,7 +378,7 @@ public sealed partial class ScreenCaptureOverlay : Window
         else if((Keyboard.Modifiers&ModifierKeys.Control)!=0&&key==Key.S){SaveOnly();e.Handled=true;}
         else if((Keyboard.Modifiers&ModifierKeys.Control)!=0&&key==Key.Z){RemoveLastAnnotation();e.Handled=true;}
         else if(key==Key.Delete&&selectedAnnotation!=null&&canvas.Children.Contains(selectedAnnotation)){canvas.Children.Remove(selectedAnnotation);selectedAnnotation=null;ClearAnnResizer();e.Handled=true;}
-        // 選區完成後的單鍵快捷鍵（無修飾鍵；取色器模式的 C/Shift 已在上方分支處理，注釋文字框聚焦時已提前返回）
+        // One-key shortcuts after the selection is complete (no modifier keys; C/Shift in the color picker mode has already been handled in the branch above, and focus is returned early when the comment text box is selected)
         else if(selectionCommitted&&Keyboard.Modifiers==ModifierKeys.None)
         {
             switch(key)
@@ -507,7 +507,7 @@ public sealed partial class ScreenCaptureOverlay : Window
         if(y+toolbar.ActualHeight>ActualHeight-8)y=selectionRect.Top-toolbar.ActualHeight-10;
         Canvas.SetLeft(toolbar,Math.Clamp(x,8,Math.Max(8,ActualWidth-toolbar.ActualWidth-8)));
         Canvas.SetTop(toolbar,Math.Clamp(y,8,Math.Max(8,ActualHeight-toolbar.ActualHeight-8)));
-        // sideBar（外邊框/圓角/保持比例）改由主工具栏「更多…」按鈕切換顯示，不再隨工具栏自動彈出
+        // The sidebar (outer border/rounded corners/maintain aspect ratio) is now toggled via the "More..." button on the main toolbar and no longer pops up automatically with the toolbar.
         sideBar.Visibility=Visibility.Collapsed;
         if(hasSecondary)
         {
@@ -708,7 +708,7 @@ public sealed partial class ScreenCaptureOverlay : Window
         UpdateSelection(r);
         ShowToolbar();
         HideLoupe();
-        // 自動翻譯模式：框選完成直接觸發原位翻譯（保留選框與工具欄，拖動/縮放選區會自動重譯），而非關窗後另彈貼圖窗口
+        // Automatic Translation Mode: Selecting text triggers in-place translation immediately (the selection box and toolbar remain visible; dragging or zooming the selection area will automatically re-translate the text), rather than closing the window and opening a separate translation window.
         if(autoTranslateOnSelect)Dispatcher.BeginInvoke(new Action(StartTranslate),System.Windows.Threading.DispatcherPriority.Background);
     }
 
@@ -755,7 +755,7 @@ public sealed partial class ScreenCaptureOverlay : Window
         sideBar.Child=col;
     }
 
-    // 「更多」按鈕：切換 sideBar（外邊框/圓角/保持比例三個工具）作為彈出小面板
+    // "More" button: Toggles the sidebar (three tools: Outer Border, Rounded Corners, and Maintain Proportions) to open as a pop-up panel
     void ToggleMoreTools()
     {
         if(sideBar.Visibility==Visibility.Visible){sideBar.Visibility=Visibility.Collapsed;return;}

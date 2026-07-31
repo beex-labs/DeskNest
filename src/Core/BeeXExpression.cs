@@ -10,8 +10,8 @@ static class BeeXExpression
         catch { value = 0; return false; }
     }
 
-    // 全角→半角歸一：全角 ASCII（！-～，含數字/＋－＊／（）．）、全角空格、數學減號 − 都轉成半角，
-    // 使 =１＋１／２（９＊８） 等全角算式与半角等效（× ÷ 已由 Parser 直接識別）
+    // Full-width -> half-width normalization: full-width ASCII (! - ~, including digits/ + - * / ( ) .), the full-width space, and the math minus sign U+2212 are all converted to half-width,
+    // so full-width expressions like =１＋１／２（９＊８） behave the same as half-width (x and / are recognized directly by the parser)
     static string Normalize(string text)
     {
         var sb = new System.Text.StringBuilder(text.Length);

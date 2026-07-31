@@ -24,7 +24,7 @@ public sealed partial class DeskNestService
         menu.Closed+=(_,_)=>{if(ReferenceEquals(trayMenu,menu))trayMenu=null;};
         ShowTrayContextMenu(menu);
     }
-    // 系統匣的 WPF 右鍵選單需先把本進程的一個視窗提到前台，否則點擊選單外部時不會自動關閉。
+    // The WPF context menu for the tray must first bring one of this process's windows to the foreground, otherwise clicking outside the menu will not close it automatically.
     public void ShowTrayContextMenu(System.Windows.Controls.ContextMenu menu)
     {
         var handle=EnsureMenuActivator();

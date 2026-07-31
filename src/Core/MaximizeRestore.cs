@@ -14,9 +14,9 @@ using Color = System.Windows.Media.Color;
 namespace BeeX.DeskNest;
 
 /// <summary>
-/// 通用「最大化后恢复原窗口大小」按钮：任何窗口被最大化时，在其内容区右上角浮出一个恢复按钮，
-/// 点击即还原到最大化前的大小。用 Adorner 注入，无需修改各窗口布局。
-/// 仅对自定义无边框（无原生标题栏）的窗口有意义；原生标题栏窗口本身已带还原按钮。
+/// Generic "restore to original window size after maximizing" button: when any window is maximized, a restore button floats at the top-right of its content area,
+/// and clicking it restores the pre-maximize size. Injected via an Adorner, so no per-window layout changes are needed.
+/// Only meaningful for custom borderless windows (no native title bar); native title-bar windows already have their own restore button.
 /// </summary>
 public static class MaximizeRestore
 {

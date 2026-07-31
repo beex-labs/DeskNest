@@ -42,7 +42,7 @@ namespace BeeX.DeskNest;
         var logo=new WpfImage{Source=new BitmapImage(new Uri("pack://application:,,,/Assets/BeeX.png")),Width=34,Height=34,Stretch=Stretch.Uniform};
         shell=new Border{Width=BallSize,Height=BallSize,HorizontalAlignment=System.Windows.HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center,CornerRadius=new CornerRadius(BallSize/2),Background=new SolidColorBrush(WpfColor.FromArgb(212,13,19,33)),BorderBrush=new SolidColorBrush(WpfColor.FromArgb(150,255,138,0)),BorderThickness=new Thickness(1),Child=logo};
         shell.Effect=new System.Windows.Media.Effects.DropShadowEffect{BlurRadius=18,ShadowDepth=4,Opacity=.28,Color=WpfColor.FromRgb(13,19,33)};
-        // 外層透明邊距讓圓形陰影完整鋪開（不再被方形視窗裁成方形陰影）；空白邊距 Background=null 點擊穿透
+        // The outer transparent margin lets the circular shadow spread fully (no longer clipped into a square by the rectangular window); the blank margin has Background=null for click-through
         Content=new Grid{Background=WpfBrushes.Transparent,Children={shell}};
         SourceInitialized+=(_,_)=>{WindowRegionHelper.HideFromAltTab(this);WindowRegionHelper.DisableSystemShadow(this);ApplyCircularRegion();};
         Loaded+=(_,_)=>{WindowRegionHelper.DisableSystemShadow(this);ApplyCircularRegion();Place();ApplyPreferences();};
@@ -54,8 +54,8 @@ namespace BeeX.DeskNest;
     }
 
     /// <summary>
-    /// 使用 GDI 橢圓區域讓 DWM 系統陰影呈圓形（配合 AllowsTransparency 透明背景）。
-    /// SetWindowRgn 會接管 hRgn 所有權，無需手動 DeleteObject。
+    /// Uses a GDI ellipse region so the DWM system shadow appears circular (paired with the AllowsTransparency transparent background).
+    /// SetWindowRgn takes ownership of hRgn, so no manual DeleteObject is needed.
     /// </summary>
     void ApplyCircularRegion()
     {
@@ -74,7 +74,7 @@ namespace BeeX.DeskNest;
     {
         var vs=VirtualScreenBounds();
         var savedL=service.State.FloatingBallLeft;var savedT=service.State.FloatingBallTop;
-        // -1/-1 為未設定的默認哨兵；其餘（含左側副屏的負座標）視為已保存位置，鉗進當前虛擬桌面（副屏被拔除時自動拉回可見區）
+        // -1/-1 is the unset default sentinel; everything else (including negative coordinates of a left-side secondary screen) is treated as a saved position, clamped into the current virtual desktop (auto-pulled back to the visible area when a secondary screen is unplugged)
         var hasSaved=double.IsFinite(savedL)&&double.IsFinite(savedT)&&!(savedL==-1&&savedT==-1);
         if(hasSaved)
         {
@@ -141,10 +141,10 @@ namespace BeeX.DeskNest;
         Top=Math.Clamp(Top,work.Top+8,work.Bottom-Height-8);
     }
 
-    // 整個虛擬桌面（含所有顕示器，DIU 單位）：拖動時按此鉗制，允許把球拖到任意副屏
+    // The entire virtual desktop (all monitors, in DIU): clamp against this when dragging, allowing the ball to be dragged to any secondary screen
     static Rect VirtualScreenBounds()=>new(SystemParameters.VirtualScreenLeft,SystemParameters.VirtualScreenTop,SystemParameters.VirtualScreenWidth,SystemParameters.VirtualScreenHeight);
 
-    // 球當前所在顕示器的工作區（DIU）：用視窗 DPI 把球心 DIU→物理像素定位螢幕，再把該螢幕工作區換算回 DIU
+    // The work area (DIU) of the monitor the ball is currently on: use the window DPI to map the ball center DIU -> physical pixels to locate the screen, then convert that screen's work area back to DIU
     Rect CurrentScreenWorkArea()
     {
         try

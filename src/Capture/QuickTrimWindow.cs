@@ -15,9 +15,9 @@ using Clipboard=System.Windows.Clipboard;
 namespace BeeX.DeskNest;
 
 /// <summary>
-/// 錄製後的簡易剪輯工具條：預覽窗貼在錄製區域位置循環播放，工具條提供
-/// 修剪滑軌（截取起點/終點+播放頭）、播放/暫停、倍速、格式（MP4/GIF/WebP）、導出、複製、重置。
-/// 完整剪輯器（VideoEditorWindow）代碼保留但不從此入口打開。
+/// Simple editing toolbar after recording: The preview window is positioned over the recording area and plays in a loop; the toolbar provides
+/// Trim Timeline (Cut Start/End Points + Playhead), Play/Pause, Speed, Format (MP4/GIF/WebP), Export, Copy, Reset.
+/// The full Video Editor (VideoEditorWindow) code is retained but is not opened from this entry point.
 /// </summary>
 public sealed class QuickTrimWindow : Window
 {
@@ -26,8 +26,8 @@ public sealed class QuickTrimWindow : Window
     readonly Rect region;
     readonly bool hasAudio;
 
-    double duration;          // 影片總長（秒）
-    double trimStart, trimEnd; // 截取起點/終點（秒）
+    double duration;          // Total Video Length (seconds)
+    double trimStart, trimEnd; // Start/End Time (seconds)
     double speed=1.0;
     static readonly double[] Speeds={0.5,0.75,1.0,1.25,1.5,2.0};
     static readonly string[] Formats={"MP4","GIF","WebP"};
@@ -38,13 +38,13 @@ public sealed class QuickTrimWindow : Window
     readonly MediaElement media=new(){LoadedBehavior=MediaState.Manual,UnloadedBehavior=MediaState.Manual,ScrubbingEnabled=true,Stretch=Stretch.Uniform};
     System.Windows.Threading.DispatcherTimer? tick;
 
-    // 工具條 UI
+    // Toolbar UI
     Border rootBar=new();
     StackPanel ctrlRow=new(){Orientation=Orientation.Horizontal};
     Button playBtn=new(), speedBtn=new(), formatBtn=new();
     readonly TextBlock timeText=new(){Foreground=Brushes.White,FontSize=14,FontWeight=FontWeights.SemiBold,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(4,0,8,0)};
 
-    // 修剪滑軌
+    // Trimming the Slide Rail
     const double TrackW=460, TrackPad=6;
     readonly Canvas track=new(){Width=TrackW,Height=26,Background=Brushes.Transparent};
     readonly Border trackBg=new(){Height=6,CornerRadius=new CornerRadius(3),Background=new SolidColorBrush(Color.FromArgb(90,255,255,255))};
@@ -73,7 +73,7 @@ public sealed class QuickTrimWindow : Window
 
     void BuildUi()
     {
-        // 修剪滑軌
+        // Trimming the Slide Rail
         track.Children.Add(trackBg);track.Children.Add(rangeFill);
         track.Children.Add(playhead);track.Children.Add(startHandle);track.Children.Add(endHandle);
         Canvas.SetTop(trackBg,10);Canvas.SetTop(rangeFill,10);Canvas.SetTop(playhead,6);Canvas.SetTop(startHandle,3);Canvas.SetTop(endHandle,3);
@@ -83,7 +83,7 @@ public sealed class QuickTrimWindow : Window
         track.MouseMove+=OnTrackMove;
         track.MouseLeftButtonUp+=OnTrackUp;
 
-        // 控制行
+        // Control Line
         playBtn=IconBtn("player-play",L("播放/暫停"),TogglePlay);
         speedBtn=TextBtn("1.0X",CycleSpeed);
         formatBtn=TextBtn("MP4",CycleFormat);
@@ -138,7 +138,7 @@ public sealed class QuickTrimWindow : Window
         return b;
     }
 
-    // ===== 預覽 =====
+    // ===== Preview =====
 
     void ShowPreview()
     {
@@ -149,11 +149,11 @@ public sealed class QuickTrimWindow : Window
                 var d=media.NaturalDuration.TimeSpan.TotalSeconds;
                 if(d>0.1){if(Math.Abs(trimEnd-duration)<0.01)trimEnd=d;duration=d;LayoutTrack();}
             }
-            media.Pause();media.Position=TimeSpan.Zero; // 顯示首幀
+            media.Pause();media.Position=TimeSpan.Zero; // Show First Frame
         };
         media.MediaEnded+=(_,_)=>{if(playing){media.Position=TimeSpan.FromSeconds(trimStart);media.Play();}};
         media.Source=new Uri(srcPath);
-        media.Play(); // 觸發 MediaOpened 後立即暫停
+        media.Play(); // Pause immediately after the MediaOpened event is triggered
         var host=new Border{BorderBrush=new SolidColorBrush(Color.FromArgb(235,255,138,0)),BorderThickness=new Thickness(2),Background=Brushes.Black,Child=media};
         host.MouseLeftButtonDown+=(_,e)=>{TogglePlay();e.Handled=true;};
         previewWin=new Window
@@ -217,7 +217,7 @@ public sealed class QuickTrimWindow : Window
         LayoutTrack();
     }
 
-    // ===== 修剪滑軌 =====
+    // ===== Trimming the Slide Rail =====
 
     double XOf(double t)=>TrackPad+Math.Clamp(t/duration,0,1)*(TrackW-TrackPad*2);
     double TOf(double x)=>Math.Clamp((x-TrackPad)/(TrackW-TrackPad*2),0,1)*duration;
@@ -271,7 +271,7 @@ public sealed class QuickTrimWindow : Window
         MovePlayhead(t);
     }
 
-    // ===== 導出 =====
+    // ===== Export =====
 
     void Export(bool copyAfter)
     {
@@ -279,7 +279,7 @@ public sealed class QuickTrimWindow : Window
         var inv=System.Globalization.CultureInfo.InvariantCulture;
         bool fullRange=trimStart<0.05&&trimEnd>duration-0.05;
         string fmt=Formats[formatIdx];
-        // 全片段 + 原速 + MP4：無需處理，直接使用原始檔
+        // Full Clip + Original Speed + MP4: No processing required; use the original file directly
         if(fullRange&&Math.Abs(speed-1.0)<0.001&&fmt=="MP4"){Finish(srcPath,copyAfter);return;}
         var dir=IoPath.GetDirectoryName(srcPath)??".";
         var stem=IoPath.GetFileNameWithoutExtension(srcPath);
@@ -328,7 +328,7 @@ public sealed class QuickTrimWindow : Window
         Close();
     }
 
-    // ===== 佈局/收尾 =====
+    // ===== Setup/Wrap-up =====
 
     void PlaceBar()
     {

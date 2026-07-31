@@ -23,7 +23,7 @@ using UniformGrid = System.Windows.Controls.Primitives.UniformGrid;
 
 namespace BeeX.DeskNest;
 
-// 視窗透明助手彈窗：選取任意視窗並調整整體透明度，可最小化到系統匣（打開窗口 / 還原全部 / 退出）。
+// Window Transparency Assistant Pop-up: Select any window and adjust its overall transparency; can be minimized to the system tray (Open Window / Restore All / Exit).
 public sealed class WindowTransparencyWindow : Window
 {
     readonly DeskNestService service;
@@ -78,7 +78,7 @@ public sealed class WindowTransparencyWindow : Window
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(TitleBarMetrics.Dip(this)) });
         grid.RowDefinitions.Add(new RowDefinition());
 
-        // 標題欄
+        // Title Bar
         var titleBar = new Grid { Margin = new Thickness(14, 0, 6, 0) };
         titleBar.ColumnDefinitions.Add(new ColumnDefinition());
         titleBar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -94,7 +94,7 @@ public sealed class WindowTransparencyWindow : Window
         titleBar.MouseLeftButtonDown += (_, e) => { if (e.LeftButton == MouseButtonState.Pressed && !InputHitTestHelper.IsInteractive(e.OriginalSource as DependencyObject)) try { DragMove(); } catch { } };
         grid.Children.Add(titleBar);
 
-        // 內容區
+        // Content Area
         var body = new Grid { Margin = new Thickness(28, 12, 28, 22) };
         body.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         body.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -175,7 +175,7 @@ public sealed class WindowTransparencyWindow : Window
         Topmost = false;
     }
 
-    // 主題切換後重建內容並保留當前透明度滑桿值，使視窗透明工具跟隨 DeskNest 主題色。
+    // After switching themes, rebuild the content while preserving the current transparency slider value, so that the Window Transparency tool matches the DeskNest theme colors.
     public void ApplyTheme()
     {
         var prev = opacitySlider?.Value ?? 200;
@@ -235,7 +235,7 @@ public sealed class WindowTransparencyWindow : Window
         menu.BorderBrush = new SolidColorBrush(WpfColor.FromArgb(120, 255, 138, 0));
     }
 
-    // 退出透明工具：還原全部視窗、隱藏視窗與系統匣圖標（不影響 DeskNest 主程式）。
+    // Exit the Transparency Tool: Restore all windows, hide windows, and hide system tray icons (this does not affect the DeskNest main program).
     void ExitTool()
     {
         RestoreAll(false);
@@ -257,8 +257,8 @@ public sealed class WindowTransparencyWindow : Window
         opacityValue.Text = $"{value} / 255  ·  {percent}%";
     }
 
-    // 拖動滑桿時用工具視窗自身的透明度做即時預覽；無論是否已選取目標，都不會自動套用到目標視窗。
-    // 用戶必須點擊「套用」才會真正生效。主題重建期間不觸發（避免 residual targetWindow 被錯誤套用）。
+    // Use the tool window's own transparency to preview changes in real time as you drag the slider; changes are not automatically applied to the target window, regardless of whether a target has been selected.
+    // Users must click "Apply" for the changes to take effect. This is not triggered during theme rebuilding (to prevent residual `targetWindow` values from being applied incorrectly).
     void OnOpacityChanged()
     {
         if (buildingTheme || opacitySlider == null || opacityValue == null) return;
@@ -357,7 +357,7 @@ public sealed class WindowTransparencyWindow : Window
         Opacity = 1;
     }
 
-    // 標題欄 Grid 背景為空不參與命中測試，改用窗口級 Preview：頂部標題欄（物理 65px）非互動區域按住即可拖動整個視窗。
+    // The Grid background in the title bar is blank and is not included in the click-through test; instead, use the window-level Preview: The top title bar (physical 65px) is a non-interactive area; hold down to drag the entire window.
     protected override void OnPreviewMouseLeftButtonDown(MouseButtonEventArgs e)
     {
         base.OnPreviewMouseLeftButtonDown(e);
@@ -366,7 +366,7 @@ public sealed class WindowTransparencyWindow : Window
         try { DragMove(); } catch { }
     }
 
-    /// <summary>跨螢幕拖動後 DPI 變化，重算標題欄物理 65px 對應的邏輯高度</summary>
+    /// <summary>DPI changes after dragging across screens; recalculating the logical height corresponding to the physical 65px in the title bar</summary>
     protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
     {
         base.OnDpiChanged(oldDpi, newDpi);
@@ -375,7 +375,7 @@ public sealed class WindowTransparencyWindow : Window
 
     protected override void OnClosing(CancelEventArgs e)
     {
-        // 關閉按鈕/Alt+F4 僅隱藏到系統匣（透明效果保留）；只有 DeskNest 主程式退出時才真正關閉。
+        // The Close button/Alt+F4 only minimizes the window to the system tray (while retaining the transparency effect); the program is not truly closed until the DeskNest main application is exited.
         if (shuttingDown) { base.OnClosing(e); return; }
         e.Cancel = true;
         HideToTray();

@@ -6,17 +6,16 @@ using System.Text;
 namespace BeeXCleaner.Infrastructure;
 
 /// <summary>
-/// 文件占用解除器：复刻 Unlocker/LockHunter 思路，主动解除文件/文件夹的占用后再删除，
-/// 而不是留到重启。步骤：
-/// ① 用 Restart Manager 找出锁定该路径的进程；
-/// ② 枚举系统句柄（NtQuerySystemInformation），把这些进程持有、指向该路径的文件句柄
-///    通过 DuplicateHandle(DUPLICATE_CLOSE_SOURCE) 直接关闭（不杀进程）；
-/// ③ 关键系统进程（System/csrss/lsass 等）一律跳过，避免蓝屏。
-/// 全部为用户态实现，需管理员权限（本程序清单已 requireAdministrator）。
+/// Releases a lock held on a file or folder so it can be deleted immediately instead of on reboot. Steps:
+/// (1) use Restart Manager to find the processes locking the path;
+/// (2) enumerate system handles (NtQuerySystemInformation) and close the file handles those processes hold
+///     to the path via DuplicateHandle(DUPLICATE_CLOSE_SOURCE) (without killing the processes);
+/// (3) always skip critical system processes (System/csrss/lsass, etc.) to avoid a crash.
+/// Fully user-mode; requires administrator rights (the app manifest already sets requireAdministrator).
 /// </summary>
 public static class FileUnlocker
 {
-    /// <summary>尝试解除对 path（文件或目录）的占用。返回是否至少关闭了一个占用句柄。</summary>
+    /// <summary>Attempts to release the lock on a path (file or directory). Returns whether at least one lock handle has been closed. </summary>
     public static bool TryUnlock(string path)
     {
         try
@@ -34,9 +33,9 @@ public static class FileUnlocker
     }
 
     /// <summary>
-    /// 结束占用该路径的非关键进程。用于“关句柄仍无法删除”的情形——运行中的程序把
-    /// EXE/DLL 作为映像加载时，仅关文件句柄不足以释放，必须结束进程。返回结束的进程数。
-    /// 关键系统进程与 explorer/dwm 等外壳进程一律跳过；本进程自身跳过。
+    /// Terminate non-critical processes that are using this path. Used in situations where "closing the handle still fails to delete the file"—running programs are using
+    /// When an EXE/DLL is loaded as an image, simply closing the file handle is not sufficient to free the memory; the process must be terminated. Returns the number of terminated processes.
+    /// Critical system processes and shell processes such as explorer and dwm are all skipped; this process itself is skipped.
     /// </summary>
     public static int KillLockers(string path)
     {
@@ -56,18 +55,18 @@ public static class FileUnlocker
                 p.WaitForExit(3000);
                 killed++;
             }
-            catch { /* 进程已退出或无法结束，忽略 */ }
+            catch { /* The process has exited or cannot be terminated; ignore */ }
         }
         return killed;
     }
 
-    // 外壳/会话基础进程：即便占用文件也不结束（结束会破坏桌面/输入法等），交由重启兜底
+    // Shell/Session Daemon: It does not terminate even if it is using files (terminating it would disrupt the desktop, input method, etc.); instead, it is left to be handled by a system restart as a fallback.
     private static readonly HashSet<string> NoKillNames = new(StringComparer.OrdinalIgnoreCase)
     {
         "explorer", "dwm", "sihost", "ctfmon", "fontdrvhost", "runtimebroker", "taskhostw"
     };
 
-    // ==================== Restart Manager：定位占用进程 ====================
+    // ==================== Restart Manager: Locating Processes That Are Taking Up Resources ====================
 
     [StructLayout(LayoutKind.Sequential)]
     private struct RM_UNIQUE_PROCESS
@@ -110,7 +109,7 @@ public static class FileUnlocker
 
     private const int ERROR_MORE_DATA = 234;
 
-    /// <summary>用 Restart Manager 找出锁定该路径的进程 PID。</summary>
+    /// <summary>Use Restart Manager to find the PID of the process locking that path.</summary>
     public static List<int> GetLockingProcesses(string path)
     {
         var pids = new List<int>();
@@ -130,7 +129,7 @@ public static class FileUnlocker
                 {
                     for (var i = 0; i < count; i++)
                     {
-                        // 跳过 Restart Manager 判定为关键的系统进程
+                        // Skip system processes that Restart Manager deems critical
                         if (arr[i].ApplicationType == RM_APP_TYPE.RmCritical) continue;
                         pids.Add(arr[i].Process.dwProcessId);
                     }
@@ -141,7 +140,7 @@ public static class FileUnlocker
         return pids;
     }
 
-    // ==================== 句柄枚举 + 强制关闭 ====================
+    // ==================== Handle Enumeration + Forced Closure ====================
 
     [StructLayout(LayoutKind.Sequential)]
     private struct SYSTEM_HANDLE_ENTRY
@@ -197,7 +196,7 @@ public static class FileUnlocker
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     private static extern int QueryDosDevice(string lpDeviceName, StringBuilder lpTargetPath, int ucchMax);
 
-    /// <summary>关闭 pids 中所有指向 ntPath（或其子路径）的文件句柄。返回关闭数量。</summary>
+    /// <summary>Closes all file handles in pids that point to ntPath (or any of its subpaths). Returns the number of handles closed. </summary>
     private static int CloseHandlesTo(string ntPath, List<int> pids)
     {
         var targetPids = new HashSet<int>(pids);
@@ -218,14 +217,14 @@ public static class FileUnlocker
             }
             if (src == IntPtr.Zero) continue;
 
-            // 复制到本进程以查询其名称
+            // Copy to this process to query its name
             if (!DuplicateHandle(src, h.HandleValue, current, out var dup, 0, false, DUPLICATE_SAME_ACCESS))
                 continue;
 
             var (completed, name) = GetHandleNameWithTimeout(dup, 150);
-            // 查询超时时后台线程可能仍阻塞在 NtQueryObject(dup) 上：此时关闭 dup 会使句柄值
-            // 被复用，苏醒后的线程可能查到无关句柄。故仅在查询正常完成时关闭（超时句柄极少，
-            // 泄漏到进程退出好于误操作无关句柄）。
+            // When a query times out, the background thread may still be blocked on `NtQueryObject(dup)`: In this case, closing `dup` will cause the handle value to
+            // If reused, a thread that has resumed execution may encounter an invalid handle. Therefore, it is closed only when the query completes successfully (timeout handles are extremely rare,
+            // (It is better to let a handle leak until the process exits than to accidentally manipulate an unrelated handle.)
             if (completed) CloseHandle(dup);
             if (string.IsNullOrEmpty(name)) continue;
 
@@ -233,7 +232,7 @@ public static class FileUnlocker
                         || name.StartsWith(ntPath + "\\", StringComparison.OrdinalIgnoreCase);
             if (!match) continue;
 
-            // 关键一步：以 DUPLICATE_CLOSE_SOURCE 复制，等效于在源进程里关闭该句柄 → 解除占用
+            // Key step: Copy using DUPLICATE_CLOSE_SOURCE, which is equivalent to closing the handle in the source process → release the handle
             if (DuplicateHandle(src, h.HandleValue, IntPtr.Zero, out _, 0, false, DUPLICATE_CLOSE_SOURCE))
                 closed++;
         }
@@ -252,8 +251,8 @@ public static class FileUnlocker
             while ((status = NtQuerySystemInformation(SystemExtendedHandleInformation, buffer, len, out var need))
                    == STATUS_INFO_LENGTH_MISMATCH)
             {
-                // 先释放并置零再重新分配：若 AllocHGlobal 抛出（句柄表巨大时 len 翻倍），
-                // 悬空指针会在 finally 中被二次 FreeHGlobal，造成堆损坏
+                // First release and zero out, then reallocate: If AllocHGlobal throws an exception (when the handle table is large, double the value of len),
+                // A dangling pointer will be freed a second time by `FreeHGlobal` within the `finally` block, causing heap corruption.
                 Marshal.FreeHGlobal(buffer);
                 buffer = IntPtr.Zero;
                 len = need > 0 ? need + 0x10000 : len * 2;
@@ -289,28 +288,28 @@ public static class FileUnlocker
         finally { Marshal.FreeHGlobal(buf); }
     }
 
-    /// <summary>带超时地查询句柄名称：个别同步句柄(如命名管道)会令 NtQueryObject 卡死，超时即放弃。
-    /// 返回 completed=false 表示后台线程可能仍在使用该句柄，调用方不应关闭它。</summary>
+    /// <summary>Query handle names with a timeout: Certain synchronous handles (such as named pipes) can cause NtQueryObject to hang; if a timeout occurs, the operation is abandoned.
+    /// A return value of `completed=false` indicates that a background thread may still be using the handle, and the caller should not close it. </summary>
     private static (bool completed, string? name) GetHandleNameWithTimeout(IntPtr handle, int timeoutMs)
     {
         string? name = null;
         var t = new System.Threading.Thread(() =>
         {
             try { name = GetHandleName(handle); }
-            catch { /* 忽略 */ }
+            catch { /* Ignore */ }
         })
         { IsBackground = true };
         t.Start();
         return t.Join(timeoutMs) ? (true, name) : (false, null);
     }
 
-    /// <summary>把 Win32 路径转成内核对象路径（\Device\HarddiskVolumeN\...）以匹配句柄名。</summary>
+    /// <summary>Convert Win32 paths to kernel object paths (\Device\HarddiskVolumeN\...) to match handle names. </summary>
     private static string? ToNtPath(string fullPath)
     {
         try
         {
             var root = Path.GetPathRoot(fullPath);
-            if (string.IsNullOrEmpty(root) || root.StartsWith(@"\\")) return null; // 仅本地盘
+            if (string.IsNullOrEmpty(root) || root.StartsWith(@"\\")) return null; // Local Market Only
             var drive = root.TrimEnd('\\'); // "C:"
             var sb = new StringBuilder(1024);
             if (QueryDosDevice(drive, sb, 1024) == 0) return null;

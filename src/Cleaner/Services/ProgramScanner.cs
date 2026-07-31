@@ -6,7 +6,7 @@ using Microsoft.Win32;
 namespace BeeXCleaner.Services;
 
 /// <summary>
-/// 枚举本机已安装的 Win32 程序（读取注册表 Uninstall 项）。
+/// List the Win32 programs installed on this computer (by reading the "Uninstall" registry entries).
 /// </summary>
 public sealed class ProgramScanner
 {
@@ -14,16 +14,16 @@ public sealed class ProgramScanner
         @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall";
 
     /// <summary>
-    /// 扫描全部已安装程序，并去重。
+    /// Scan all installed programs and remove duplicates.
     /// </summary>
     public List<InstalledProgram> Scan()
     {
         var results = new List<InstalledProgram>();
 
-        // HKLM 64 位视图 + 32 位视图（WOW6432Node）
+        // HKLM 64-bit View + 32-bit View (WOW6432Node)
         ReadRoot(RegistryHive.LocalMachine, RegistryView.Registry64, results);
         ReadRoot(RegistryHive.LocalMachine, RegistryView.Registry32, results);
-        // 当前用户：HKCU 的 Uninstall 不做 WOW64 重定向，64/32 视图指向同一物理键，只扫一次
+        // Current user: HKCU's "Uninstall" does not perform WOW64 redirection; the 64-bit and 32-bit views point to the same physical key, and are scanned only once.
         ReadRoot(RegistryHive.CurrentUser, RegistryView.Registry64, results);
 
         return Deduplicate(results);
@@ -50,13 +50,13 @@ public sealed class ProgramScanner
                 }
                 catch
                 {
-                    // 单个子项异常忽略，继续枚举
+                    // Ignore a single exception in a subitem and continue enumeration
                 }
             }
         }
         catch
         {
-            // 视图不存在或无权限，忽略
+            // The view does not exist or you do not have permission; ignore
         }
     }
 
@@ -66,7 +66,7 @@ public sealed class ProgramScanner
         if (string.IsNullOrWhiteSpace(name))
             return null;
 
-        // 过滤系统组件与更新补丁
+        // Filtration System Components and Update Patches
         if (ReadInt(app, "SystemComponent") == 1)
             return null;
 
@@ -77,7 +77,7 @@ public sealed class ProgramScanner
              || releaseType.Equals("Hotfix", StringComparison.OrdinalIgnoreCase)))
             return null;
 
-        // 系统更新条目（KBxxxxxx）
+        // System Update Article (KBxxxxxx)
         if (name.StartsWith("KB", StringComparison.OrdinalIgnoreCase)
             && name.Length > 2 && char.IsDigit(name[2]))
             return null;
@@ -86,7 +86,7 @@ public sealed class ProgramScanner
         var quiet = app.GetValue("QuietUninstallString") as string;
         var windowsInstaller = ReadInt(app, "WindowsInstaller") == 1;
 
-        // 既无卸载串、又非 MSI 的空条目通常没有意义
+        // Empty entries that are neither uninstallation strings nor MSI files are usually meaningless.
         var isMsiGuid = LooksLikeGuid(keyName);
         if (string.IsNullOrWhiteSpace(uninstall)
             && string.IsNullOrWhiteSpace(quiet)
@@ -141,7 +141,7 @@ public sealed class ProgramScanner
     {
         if (string.IsNullOrWhiteSpace(raw)) return null;
         raw = raw.Trim();
-        // 常见格式 yyyyMMdd
+        // Common format: yyyyMMdd
         if (raw.Length == 8 && DateTime.TryParseExact(
                 raw, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d))
             return d;
@@ -158,7 +158,7 @@ public sealed class ProgramScanner
     }
 
     /// <summary>
-    /// 去重：同名同版本仅保留一条；估算大小取较大值。
+    /// Duplicate removal: Only one entry with the same name and version is retained; the estimated size is taken as the larger value.
     /// </summary>
     private static List<InstalledProgram> Deduplicate(List<InstalledProgram> items)
     {

@@ -7,14 +7,14 @@ using Microsoft.Win32;
 namespace BeeXCleaner.Services;
 
 /// <summary>
-/// 遗留扫描（全系统）：查找“软件已卸载但仍残留”的记录：
-/// ① 失效快捷方式（目标文件已删除）
-/// ② 死卸载项（注册表 Uninstall 项，但安装目录/程序文件已不存在）
-/// ③ 孤儿 App Paths（注册的可执行文件已删除）
-/// ④ 指向已删除文件的自启动项（Run / RunOnce）
-/// ⑤ 孤立残留文件夹（Program Files 下不属于任何已安装程序的遗留目录）
-/// 前四类以“被引用的本地文件确实不存在”为判据；第五类比对已安装程序清单 + 系统白名单，
-/// 默认不勾选交用户确认。网络/NAS 位置一律忽略。
+/// Residual Scan (Entire System): Searches for entries where "software has been uninstalled but residual files remain":
+/// ① Broken shortcut (target file has been deleted)
+/// ② Orphaned uninstallation entries (Uninstall entries in the registry, but the installation directory or Program Files folder no longer exists)
+/// ③ Orphaned App Paths (Registered executables have been deleted)
+/// ④ Autostart entries (Run / RunOnce) that point to deleted files
+/// ⑤ Orphaned folders (directories under "Program Files" that do not belong to any installed programs)
+/// The first four categories use "the referenced local file does not exist" as the criterion; the fifth category compares the list of installed programs with the system whitelist,
+/// By default, the "Require User Confirmation" checkbox is unchecked. Network and NAS locations are always ignored.
 /// </summary>
 public sealed class OrphanScanner
 {
@@ -38,8 +38,8 @@ public sealed class OrphanScanner
     private const string AppPathsBase32 = @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths";
 
     /// <summary>
-    /// 遗留扫描。<paramref name="deep"/>=true 时附加扩展扫描（计划任务/服务/PATH/防火墙/文件关联，
-    /// 均以“被引用文件已不存在”为判据，默认不勾选）。
+    /// Legacy scan. When <paramref name="deep"/>=true, an extended scan is performed (scheduled tasks/services/PATH/firewall/file associations,
+    /// (All use "The referenced file no longer exists" as the criterion; this option is unchecked by default.)
     /// </summary>
     public List<ResidualItem> Scan(bool deep = false)
     {
@@ -61,12 +61,12 @@ public sealed class OrphanScanner
             .ToList();
     }
 
-    /// <summary>清理（复用共享强制清理器，可选清理会话/结束进程）。</summary>
+    /// <summary>Clean up (uses the shared forced cleanup tool; optionally cleans up sessions or terminates processes). </summary>
     public ResidualCleanResult Clean(IEnumerable<ResidualItem> items, bool secureErase = false,
         CleanupSession? session = null, bool killProcesses = false)
         => ResidualCleaner.Clean(items, secureErase, session, killProcesses);
 
-    // ---------------- ① 失效快捷方式 ----------------
+    // ---------------- ① Broken Shortcuts ----------------
 
     private static void ScanBrokenShortcuts(List<ResidualItem> results, HashSet<string> seen)
     {
@@ -92,7 +92,7 @@ public sealed class OrphanScanner
                 foreach (var lnk in lnks)
                 {
                     var target = ResolveShortcutTarget(shell, lnk);
-                    if (string.IsNullOrWhiteSpace(target)) continue; // 无文件目标（URL/商店项）跳过
+                    if (string.IsNullOrWhiteSpace(target)) continue; // Skip non-file targets (URLs/store items)
                     if (!IsMissingLocalTarget(target)) continue;
                     if (!seen.Add("S:" + lnk)) continue;
 
@@ -111,7 +111,7 @@ public sealed class OrphanScanner
         }
         finally
         {
-            // 显式释放 WScript.Shell RCW，避免大量 .lnk 扫描后 COM 对象堆积至 GC
+            // Explicitly release WScript.Shell RCW to prevent COM objects from accumulating in the GC after scanning a large number of .lnk files
             if (shell is not null)
             {
                 try { Marshal.FinalReleaseComObject(shell); } catch { }
@@ -119,15 +119,15 @@ public sealed class OrphanScanner
         }
     }
 
-    // ---------------- ② 死卸载项 ----------------
+    // ---------------- ② Dead Uninstall Entries ----------------
 
     private static void ScanDeadUninstallEntries(List<ResidualItem> results, HashSet<string> seen)
     {
         var locations = new (RegistryHive hive, RegistryView view, string sub)[]
         {
             (RegistryHive.LocalMachine, RegistryView.Registry64, UninstallBase),
-            // 32 位项用 64 位视图 + 显式 WOW6432Node 路径（与本类其它扫描一致）；
-            // 若用 Registry32 视图叠加 WOW 路径会双重重定向到不存在的键，导致 32 位死卸载项永远扫不到。
+            // 32-bit entries using a 64-bit view + explicit WOW6432Node path (consistent with other scans in this class);
+            // If you overlay the WOW path using the Registry32 view, it will result in a double redirection to a nonexistent key, causing the 32-bit uninstallation entries to never be scanned.
             (RegistryHive.LocalMachine, RegistryView.Registry64, UninstallBase32),
             (RegistryHive.CurrentUser,  RegistryView.Registry64, UninstallBase)
         };
@@ -169,14 +169,14 @@ public sealed class OrphanScanner
                         if (why is not null)
                             AddKey(results, seen, hive, $@"{sub}\{name}", $"死卸载项「{display}」— {why}");
                     }
-                    catch { /* 单项忽略 */ }
+                    catch { /* Single-Item Exclusion */ }
                 }
             }
-            catch { /* 无权限或不存在 */ }
+            catch { /* No permission or does not exist */ }
         }
     }
 
-    // ---------------- ③ 孤儿 App Paths ----------------
+    // ---------------- ③ Orphaned App Paths ----------------
 
     private static void ScanOrphanAppPaths(List<ResidualItem> results, HashSet<string> seen)
     {
@@ -213,7 +213,7 @@ public sealed class OrphanScanner
         }
     }
 
-    // ---------------- ④ 失效自启动项 ----------------
+    // ---------------- ④ Inactive Auto-Start Items ----------------
 
     private static void ScanOrphanRunEntries(List<ResidualItem> results, HashSet<string> seen)
     {
@@ -253,9 +253,9 @@ public sealed class OrphanScanner
         }
     }
 
-    // ---------------- 判定与构造辅助 ----------------
+    // ---------------- Judgment and Construction Aids ----------------
 
-    /// <summary>目标是否为“本机本地磁盘上、但已不存在”的路径。网络/NAS 与非绝对路径不判定。</summary>
+    /// <summary>Does the target correspond to a path on the local disk of this machine that no longer exists? Network/NAS paths and non-absolute paths are not considered. </summary>
     private static bool IsMissingLocalTarget(string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw)) return false;
@@ -263,8 +263,8 @@ public sealed class OrphanScanner
         try { expanded = Environment.ExpandEnvironmentVariables(raw!).Trim().Trim('"'); }
         catch { return false; }
         if (expanded.Length == 0) return false;
-        if (!Path.IsPathRooted(expanded)) return false;   // 裸名/相对路径无法核验
-        if (FileSystemUtil.IsNetworkPath(expanded)) return false; // 网络位置不判定、不清理
+        if (!Path.IsPathRooted(expanded)) return false;   // Unqualified/relative paths cannot be verified
+        if (FileSystemUtil.IsNetworkPath(expanded)) return false; // Network locations are not identified or cleaned up
         try { return !File.Exists(expanded) && !Directory.Exists(expanded); }
         catch { return false; }
     }
@@ -273,7 +273,7 @@ public sealed class OrphanScanner
     {
         var s = icon.Trim().Trim('"');
         var comma = s.LastIndexOf(',');
-        // 仅当逗号后是索引数字时才切分（避免误伤路径中的逗号）
+        // Split only when the character following the comma is an index number (to avoid accidentally splitting commas in the path)
         if (comma > 1 && int.TryParse(s[(comma + 1)..].Trim().TrimStart('-'), out _))
             s = s[..comma];
         return s.Trim().Trim('"');
@@ -311,7 +311,7 @@ public sealed class OrphanScanner
     private static string RootName(RegistryHive hive)
         => hive == RegistryHive.CurrentUser ? "HKEY_CURRENT_USER" : "HKEY_LOCAL_MACHINE";
 
-    // ---------------- 快捷方式解析（WScript.Shell 后期绑定）----------------
+    // ---------------- Shortcut Analysis (WScript.Shell Late Binding) -----------------
 
     private static object? CreateWshShell()
     {
@@ -337,7 +337,7 @@ public sealed class OrphanScanner
         catch { return null; }
         finally
         {
-            // 每个 shortcut 均为独立 COM 对象，逐个释放避免 RCW 堆积
+            // Each shortcut is an independent COM object; release them one by one to prevent RCW accumulation.
             if (sc is not null)
             {
                 try { Marshal.FinalReleaseComObject(sc); } catch { }
@@ -345,9 +345,9 @@ public sealed class OrphanScanner
         }
     }
 
-    // ---------------- ⑤ 孤立残留文件夹 ----------------
+    // ---------------- ⑤ Isolated Residual Folders ----------------
 
-    // Program Files 下这些是 Windows 自身/共享目录，不视为孤立残留
+    // The folders under "Program Files" are part of Windows itself or shared directories and are not considered isolated remnants.
     private static readonly HashSet<string> FolderWhitelist = new(StringComparer.OrdinalIgnoreCase)
     {
         "commonfiles","internetexplorer","windowsdefender",
@@ -360,7 +360,7 @@ public sealed class OrphanScanner
         "applicationverifier","msecache","microsoftshared","msxml","windowsnt"
     };
 
-    // 匹配时用于剔除的发行商/通用词，避免把文件夹名与产品词误配
+    // Publisher/generic terms used for exclusion during matching to prevent false matches between folder names and product terms
     private static readonly HashSet<string> IndexStopwords = new(StringComparer.OrdinalIgnoreCase)
     {
         "inc","llc","ltd","co","corp","corporation","company","gmbh","limited","software",
@@ -369,8 +369,8 @@ public sealed class OrphanScanner
     };
 
     /// <summary>
-    /// 扫描 Program Files / Program Files (x86) 下“不属于任何已安装程序”的顶层文件夹，
-    /// 视为疑似孤立残留（默认不勾选，交用户确认）。匹配从宽以减少误判。
+    /// Scan the top-level folders in Program Files / Program Files (x86) that "do not belong to any installed programs,"
+    /// Treat as a suspected isolated remnant (unchecked by default; requires user confirmation). Use a lenient matching strategy to reduce false positives.
     /// </summary>
     private static void ScanOrphanProgramFolders(List<ResidualItem> results, HashSet<string> seen)
     {
@@ -392,7 +392,7 @@ public sealed class OrphanScanner
             {
                 var leafCompact = Compact(Path.GetFileName(dir));
                 if (leafCompact.Length == 0) continue;
-                // Windows* / Microsoft* 前缀目录几乎都是系统或微软组件，不作为第三方孤立残留
+                // Directories with the "Windows*" or "Microsoft*" prefix are almost exclusively system or Microsoft components and are not considered isolated third-party remnants.
                 if (leafCompact.StartsWith("windows", StringComparison.Ordinal)
                     || leafCompact.StartsWith("microsoft", StringComparison.Ordinal)) continue;
                 if (FolderWhitelist.Contains(leafCompact)) continue;
@@ -409,13 +409,13 @@ public sealed class OrphanScanner
                     Confidence = ResidualConfidence.Low,
                     Risk = ResidualRisk.Caution,
                     Source = ResidualSource.Orphan,
-                    CanAutoSelect = false // 高误报风险，默认不勾选
+                    CanAutoSelect = false // High risk of false positives; unchecked by default
                 });
             }
         }
     }
 
-    /// <summary>汇总当前已安装程序的“身份特征”，用于判断某文件夹是否仍属于某已安装程序。</summary>
+    /// <summary> Compiles the "identifying characteristics" of currently installed programs to determine whether a particular folder still belongs to an installed program. </summary>
     private static InstalledIndex BuildInstalledIndex()
     {
         var idx = new InstalledIndex();
@@ -434,8 +434,8 @@ public sealed class OrphanScanner
                     try { idx.InstallDirs.Add(Path.GetFullPath(p.InstallLocation!).TrimEnd('\\').ToLowerInvariant()); }
                     catch { }
                 }
-                // 关键：很多程序 InstallLocation 为空、或文件夹名是拼音(如火绒 Huorong)与中文名不匹配。
-                // 从 DisplayIcon / UninstallString 解析出 exe 所在目录（通常就在真实安装目录内）补充索引。
+                // Key Point: For many programs, the `InstallLocation` is empty, or the folder name is in Pinyin (e.g., Huorong) and does not match the Chinese name.
+                // Determine the directory where the EXE file is located (usually within the actual installation directory) by parsing DisplayIcon and UninstallString, and update the index accordingly.
                 AddExeDir(idx, pfRoots, p.DisplayIcon, isCommand: false);
                 AddExeDir(idx, pfRoots, p.UninstallString, isCommand: true);
                 AddExeDir(idx, pfRoots, p.QuietUninstallString, isCommand: true);
@@ -444,11 +444,11 @@ public sealed class OrphanScanner
                 foreach (var t in IndexTokens(p.Publisher)) idx.Tokens.Add(t);
             }
         }
-        catch { /* 取不到已安装清单时，返回空索引（此时几乎不产生孤立项，偏安全） */ }
+        catch { /* If the list of installed items cannot be retrieved, return an empty index (this rarely results in orphaned items and is the safer option). */ }
         return idx;
     }
 
-    /// <summary>从图标/卸载命令里解析 exe 目录，仅当其位于 Program Files 之下时补入已安装目录集合。</summary>
+    /// <summary>Parse the exe directory from the icon/uninstall command, and add it to the set of installed directories only if it is located under "Program Files." </summary>
     private static void AddExeDir(InstalledIndex idx, string[] pfRoots, string? raw, bool isCommand)
     {
         if (string.IsNullOrWhiteSpace(raw)) return;
@@ -468,7 +468,7 @@ public sealed class OrphanScanner
                     break;
                 }
         }
-        catch { /* 忽略无效路径 */ }
+        catch { /* Ignore invalid paths */ }
     }
 
     private static IEnumerable<string> IndexTokens(string? text)
@@ -486,20 +486,20 @@ public sealed class OrphanScanner
     private static string Compact(string s)
         => new string(s.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
 
-    /// <summary>已安装程序身份索引：安装目录 + 产品/发行商特征词。</summary>
+    /// <summary>Installed Program Identity Index: Installation Directory + Product/Publisher Keywords. </summary>
     private sealed class InstalledIndex
     {
         public HashSet<string> InstallDirs { get; } = new(StringComparer.OrdinalIgnoreCase);
         public HashSet<string> Tokens { get; } = new(StringComparer.OrdinalIgnoreCase);
 
-        /// <summary>判断文件夹是否仍属于某个已安装程序（从宽判定，宁可不当作孤立）。</summary>
+        /// <summary>Determines whether a folder still belongs to an installed program (using a lenient criteria; it is better to not classify it as orphaned). </summary>
         public bool BelongsToInstalled(string dir, string leafCompact)
         {
             string full;
             try { full = Path.GetFullPath(dir).TrimEnd('\\').ToLowerInvariant(); }
-            catch { return true; } // 解析失败则不冒险，视为“属于”不删
+            catch { return true; } // If parsing fails, do not take any risks; treat it as "belonging" and do not delete it.
 
-            // 该目录本身/父/子是某已安装程序的安装目录
+            // This directory itself, along with its parent and child directories, is the installation directory for a specific installed program.
             foreach (var d in InstallDirs)
             {
                 if (full == d
@@ -508,7 +508,7 @@ public sealed class OrphanScanner
                     return true;
             }
 
-            // 目录名与某已安装程序的产品/发行商特征词相互包含
+            // The directory name is a subset of the product/publisher keywords for a certain installed program
             foreach (var t in Tokens)
             {
                 if (t.Length >= 4 && (leafCompact.Contains(t) || t.Contains(leafCompact)))

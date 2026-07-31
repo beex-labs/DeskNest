@@ -34,7 +34,7 @@ public partial class OrphanWindow : Window
         }
         finally
         {
-            // 异常时也必须解除遮罩，否则 async void 抛出后窗口永久不可操作
+            // The mask must also be cleared when an exception occurs; otherwise, the window will remain unresponsive permanently after an `async void` exception is thrown.
             SetBusy(false);
         }
         UpdateStatus();
@@ -62,7 +62,7 @@ public partial class OrphanWindow : Window
         UpdateStatus();
     }
 
-    /// <summary>把扫描结果并入列表（按 类型:路径:值名 去重）。</summary>
+    /// <summary>Merge the scan results into a list (removing duplicates based on type:path:value name).</summary>
     private int MergeInto(IEnumerable<ResidualItem> found)
     {
         var added = 0;
@@ -127,7 +127,7 @@ public partial class OrphanWindow : Window
         try
         {
             result = await Task.Run(() => _scanner.Clean(selected, secure, session, kill));
-            // 与残留清理的日志摘要口径对齐：同时记录释放空间
+            // Align with the log summary format for residual cleanup: Also record the amount of space freed
             var summary = $"成功 {result.Deleted}，失败 {result.Failed}，重启后删除 {result.PendingReboot}，释放 {InstalledProgram.FormatSize(result.FreedBytes)}";
             result.LogPath = session.Flush(summary);
         }
@@ -136,7 +136,7 @@ public partial class OrphanWindow : Window
             SetBusy(false);
         }
 
-        // 失败项仍真实存在：保留在列表中供复查与重试，只移除成功与已安排重启删除的项
+        // Failed items remain in the list: They are kept there for review and retry; only successful items and those scheduled for deletion are removed.
         var failedSet = new HashSet<string>(result.FailedItems, StringComparer.OrdinalIgnoreCase);
         foreach (var item in selected)
         {
@@ -152,8 +152,8 @@ public partial class OrphanWindow : Window
     private void OnClose(object sender, RoutedEventArgs e) => Close();
 
     /// <summary>
-    /// 扫描/清理进行中拦截一切关闭途径（含标题栏 X）：否则不可逆删除在后台继续、
-    /// 无法取消，且完成后以已关闭窗口为 Owner 弹结果窗会抛异常、清理结果丢失。
+    /// Scanning/cleaning in progress. Block all ways to close the app (including the "X" in the title bar); otherwise, irreversible deletion will occur and the process will continue in the background.
+    /// It cannot be canceled, and if a results window is displayed with the closed window as the owner after completion, an exception will be thrown and the results will be lost.
     /// </summary>
     protected override void OnClosing(CancelEventArgs e)
     {

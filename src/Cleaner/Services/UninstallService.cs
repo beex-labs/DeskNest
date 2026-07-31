@@ -8,50 +8,50 @@ using Microsoft.Win32;
 
 namespace BeeXCleaner.Services;
 
-/// <summary>卸载判定结果（退出码语义分级）。</summary>
+/// <summary>Uninstallation Determination Results (Exit Code Semantic Classification).</summary>
 public enum UninstallOutcome
 {
-    /// <summary>成功。</summary>
+    /// <summary>Success. </summary>
     Success,
-    /// <summary>成功，但需重启完成。</summary>
+    /// <summary>Success, but a restart is required to complete the process.</summary>
     RebootRequired,
-    /// <summary>目标已不存在，视为已卸载。</summary>
+    /// <summary>The target no longer exists; it is considered uninstalled.</summary>
     AlreadyRemoved,
-    /// <summary>用户取消。</summary>
+    /// <summary>User cancellation. </summary>
     UserCancelled,
-    /// <summary>未知退出码，无法确认是否完成（不自动清理残留）。</summary>
+    /// <summary>Unknown exit code; unable to confirm completion (residual files will not be automatically cleaned up).</summary>
     Uncertain,
-    /// <summary>失败。</summary>
+    /// <summary> Failed. </summary>
     Failed
 }
 
-/// <summary>卸载结果。</summary>
+/// <summary>Uninstallation results. </summary>
 public sealed record UninstallResult(bool Success, string Message, UninstallOutcome Outcome = UninstallOutcome.Success)
 {
     public static UninstallResult Ok(string msg = "") => new(true, msg, UninstallOutcome.Success);
     public static UninstallResult Fail(string msg) => new(false, msg, UninstallOutcome.Failed);
 
-    /// <summary>由退出码语义构造结果；成功类 Outcome 置 Success=true。</summary>
+    /// <summary>Constructs the result based on the exit code semantics; for the Success class, set Success=true. </summary>
     public static UninstallResult From(UninstallOutcome outcome, string msg = "")
         => new(outcome is UninstallOutcome.Success or UninstallOutcome.RebootRequired or UninstallOutcome.AlreadyRemoved,
             msg, outcome);
 }
 
 /// <summary>
-/// 负责执行卸载：正常卸载、静默卸载、以及强制删除（注册表 + 安装目录）。
+/// Responsible for performing uninstallation: normal uninstallation, silent uninstallation, and forced removal (registry + installation directory).
 /// </summary>
 public sealed partial class UninstallService
 {
     /// <summary>
-    /// 执行卸载。silent=true 时尝试静默卸载。
+    /// Perform uninstallation. Attempt silent uninstallation when `silent=true`.
     /// </summary>
     public async Task<UninstallResult> UninstallAsync(InstalledProgram program, bool silent)
     {
         if (program.Source == ProgramSource.Uwp)
             return UninstallResult.Fail("UWP 应用请使用 UWP 卸载通道。");
 
-        // 静默时优先静默卸载串；非静默时优先普通卸载串，
-        // 但若程序只提供了 QuietUninstallString，也用它兑现 CanNormalUninstall 的卸载承诺。
+        // In silent mode, the silent uninstallation string takes precedence; in non-silent mode, the standard uninstallation string takes precedence,
+        // However, if the program only provides `QuietUninstallString`, use it to fulfill the uninstallation promise made by `CanNormalUninstall`.
         string? command = silent && !string.IsNullOrWhiteSpace(program.QuietUninstallString)
             ? program.QuietUninstallString
             : !string.IsNullOrWhiteSpace(program.UninstallString)
@@ -61,7 +61,7 @@ public sealed partial class UninstallService
         string fileName;
         string arguments;
 
-        // MSI 产品：自行构造，可控制静默
+        // MSI Products: Customizable, Silent Operation
         if (program.MsiProductCode is not null &&
             (string.IsNullOrWhiteSpace(command) || command.Contains("msiexec", StringComparison.OrdinalIgnoreCase)))
         {
@@ -77,9 +77,9 @@ public sealed partial class UninstallService
             if (string.IsNullOrWhiteSpace(exe))
                 return UninstallResult.Fail("无法解析卸载命令。");
 
-            // 若为 msiexec 且需要静默，则补充静默参数。
-            // 静默与抑制重启必须分别补齐：命令行自带 /qn 时若缺 /norestart，
-            // msiexec 全静默模式下遇到需重启的包会不弹任何提示直接自动重启系统。
+            // If it is `msiexec` and silent execution is required, add the silent parameters.
+            // Silent and "norestart" options must be specified separately: If the command line includes /qn but lacks /norestart,
+            // When msiexec encounters a package that requires a restart in fully silent mode, it will automatically restart the system without displaying any prompts.
             if (silent && exe.EndsWith("msiexec.exe", StringComparison.OrdinalIgnoreCase))
             {
                 if (!args.Contains("/quiet", StringComparison.OrdinalIgnoreCase)
@@ -94,12 +94,12 @@ public sealed partial class UninstallService
             arguments = args;
         }
 
-        // 记录启动前的进程集合，用于识别卸载器派生的子进程
+        // Record the set of processes before startup to identify child processes spawned by the uninstaller
         var beforePids = SnapshotProcessIds();
         var result = await RunProcessAsync(fileName, arguments, silent).ConfigureAwait(false);
 
-        // 关键修复(问题3)：很多卸载器是“启动器”——主进程会立即退出，真正执行卸载的
-        // 子进程仍在运行。此处等待卸载过程真正结束，避免过早去扫描残留。
+        // Critical Fix (Issue 3): Many uninstallers are "launchers"—the main process exits immediately, and the process that actually performs the uninstallation
+        // The child process is still running. We wait here for the uninstallation process to actually complete to avoid scanning for residual files too early.
         if (result.Success)
             await WaitForCompletionAsync(program, beforePids).ConfigureAwait(false);
 
@@ -114,16 +114,16 @@ public sealed partial class UninstallService
             {
                 FileName = fileName,
                 Arguments = arguments,
-                UseShellExecute = true // 允许调用需要 UAC 的卸载器
+                UseShellExecute = true // Allow calls to uninstallers that require UAC
             };
 
             using var proc = Process.Start(psi);
             if (proc is null)
                 return UninstallResult.Fail("无法启动卸载程序。");
 
-            // 静默模式下卸载器无任何可见界面，挂起（隐藏对话框等待输入）时用户无从干预：
-            // 10 分钟超时兜底，超时强杀并返回“不确定”，避免批量卸载永久锁死主界面。
-            // 交互模式仍无限等待——用户正在操作卸载器 UI，不能替用户掐断。
+            // In silent mode, the uninstaller has no visible interface, and when it is suspended (with the dialog box hidden and waiting for input), the user cannot intervene:
+            // A 10-minute timeout fallback; if the timeout occurs, force termination and return "Unknown" to prevent the main interface from becoming permanently locked due to batch uninstallation.
+            // The interaction mode is still in an infinite wait—the user is currently interacting with the uninstaller UI, so we cannot interrupt the process on the user's behalf.
             if (silent)
             {
                 using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(10));
@@ -144,8 +144,8 @@ public sealed partial class UninstallService
                 await proc.WaitForExitAsync().ConfigureAwait(false);
             }
 
-            // 卸载器退出码语义分级（6.3）：已知码明确判定，未知码一律标记为“不确定”，
-            // 由上层拒绝自动清理残留，避免把失败当成功后误删。
+            // Semantic Classification of Uninstaller Exit Codes (6.3): Known codes are explicitly classified; unknown codes are uniformly marked as “undetermined,”
+            // The upper-level system refuses to automatically clean up residual data to prevent accidental deletion after mistaking a failure for a success.
             var outcome = MapExitCode(proc.ExitCode);
             var msg = outcome switch
             {
@@ -166,8 +166,8 @@ public sealed partial class UninstallService
     }
 
     /// <summary>
-    /// 卸载器退出码语义映射（6.3）：0→成功；3010→需重启；1605/1614→已卸载；1602→取消；其余→不确定。
-    /// 提取为独立方法以便自检覆盖。
+    /// Uninstaller Exit Code Semantic Mapping (6.3): 0 → Success; 3010 → Requires restart; 1605/1614 → Uninstalled; 1602 → Canceled; All others → Undetermined.
+    /// Extract it into a separate method to facilitate self-checking for coverage.
     /// </summary>
     public static UninstallOutcome MapExitCode(int code) => code switch
     {
@@ -178,18 +178,18 @@ public sealed partial class UninstallService
         _ => UninstallOutcome.Uncertain
     };
 
-    /// <summary>快照当前所有进程 ID。</summary>
+    /// <summary>Snapshot of all current process IDs. </summary>
     private static HashSet<int> SnapshotProcessIds()
     {
         var set = new HashSet<int>();
         try { foreach (var p in Process.GetProcesses()) { set.Add(p.Id); p.Dispose(); } }
-        catch { /* 忽略 */ }
+        catch { /* Ignore */ }
         return set;
     }
 
     /// <summary>
-    /// 等待卸载真正完成：轮询直到“卸载器派生的子进程全部退出”或“该程序的注册表卸载项消失”，
-    /// 带总超时(10 分钟)以防无限等待。
+    /// Wait for the uninstallation to be fully complete: Poll until “all child processes derived from the uninstaller have exited” or “the program’s registry uninstall entry has been removed,”
+    /// Includes a total timeout (10 minutes) to prevent an infinite wait.
     /// </summary>
     private static async Task WaitForCompletionAsync(InstalledProgram program, HashSet<int> beforePids)
     {
@@ -198,18 +198,18 @@ public sealed partial class UninstallService
         var deadline = DateTime.UtcNow.AddMinutes(10);
         var clearStreak = 0;
 
-        // 给卸载器派生的子进程留出出现的时间，避免“主进程秒退即判完成”
+        // Allow time for child processes spawned by the uninstaller to appear, to avoid the "main process exiting immediately and marking the process as complete" issue.
         await Task.Delay(2000).ConfigureAwait(false);
 
         while (DateTime.UtcNow < deadline)
         {
-            // 注册表卸载项已被移除 → 视为卸载完成，立即返回
+            // The registry uninstall entry has been removed → Uninstallation is considered complete; return immediately
             if (!UninstallKeyExists(program))
                 return;
 
             if (!AnyUninstallerRunning(beforePids, installLoc, tempPath))
             {
-                if (++clearStreak >= 2) return; // 连续两次无卸载器进程即认为结束
+                if (++clearStreak >= 2) return; // If there are no unloader processes for two consecutive times, the process is considered to have ended.
             }
             else
             {
@@ -220,7 +220,7 @@ public sealed partial class UninstallService
         }
     }
 
-    /// <summary>卸载期间是否仍有“新出现的”卸载器相关进程在运行。</summary>
+    /// <summary>Are there still "newly appearing" uninstaller-related processes running during uninstallation? </summary>
     private static bool AnyUninstallerRunning(HashSet<int> beforePids, string? installLoc, string tempPath)
     {
         Process[] procs;
@@ -233,7 +233,7 @@ public sealed partial class UninstallService
             {
                 try
                 {
-                    if (beforePids.Contains(p.Id)) continue; // 只关注卸载期间新派生的进程
+                    if (beforePids.Contains(p.Id)) continue; // Focus only on processes newly created during uninstallation
 
                     var name = p.ProcessName.ToLowerInvariant();
                     if (name is "msiexec" or "uninstall" or "uninst" or "un_a" or "au_"
@@ -241,10 +241,10 @@ public sealed partial class UninstallService
                         return true;
 
                     string? path = null;
-                    try { path = p.MainModule?.FileName; } catch { /* 无权限或已退出 */ }
+                    try { path = p.MainModule?.FileName; } catch { /* No permissions or logged out */ }
                     if (string.IsNullOrEmpty(path)) continue;
 
-                    // 补目录分隔符再比较：避免 Temp2\x.exe 被 Temp 前缀误判，空转至 10 分钟超时
+                    // Add a directory separator and compare again: This prevents "Temp2\x.exe" from being incorrectly flagged by the "Temp" prefix, which would cause the system to idle until the 10-minute timeout.
                     if (path.StartsWith(tempPath + "\\", StringComparison.OrdinalIgnoreCase)) return true;
                     if (!string.IsNullOrEmpty(installLoc)
                         && path.StartsWith(installLoc! + "\\", StringComparison.OrdinalIgnoreCase)) return true;
@@ -252,7 +252,7 @@ public sealed partial class UninstallService
                     var pl = path.ToLowerInvariant();
                     if (pl.Contains("uninst") || pl.Contains("\\unins")) return true;
                 }
-                catch { /* 单个进程异常忽略 */ }
+                catch { /* Ignore Exceptions in a Single Process */ }
             }
         }
         finally
@@ -262,7 +262,7 @@ public sealed partial class UninstallService
         return false;
     }
 
-    /// <summary>该程序的注册表卸载项是否仍存在。</summary>
+    /// <summary>Are the registry uninstallation entries for this program still present?</summary>
     private static bool UninstallKeyExists(InstalledProgram program)
     {
         try
@@ -272,19 +272,19 @@ public sealed partial class UninstallService
             using var appKey = uninstallKey?.OpenSubKey(program.RegistryKeyName);
             return appKey is not null;
         }
-        catch { return true; } // 出错时保守认为仍存在，改由进程信号判定完成
+        catch { return true; } // When an error occurs, assume it still exists; instead, use process signals to determine completion.
     }
 
     /// <summary>
-    /// 强制删除：直接移除注册表 Uninstall 项，并可选删除安装目录。
-    /// 用于常规卸载失败或程序残缺时。
+    /// Force Uninstall: Directly removes the "Uninstall" registry key and, optionally, deletes the installation directory.
+    /// To be used when the standard uninstallation fails or the program is incomplete.
     /// </summary>
     public UninstallResult ForceRemove(InstalledProgram program, bool deleteInstallFolder)
     {
         var sb = new StringBuilder();
         var anyOk = false;
 
-        // 1) 删除注册表 Uninstall 子项
+        // 1) Delete the "Uninstall" subkey from the registry
         try
         {
             using var baseKey = RegistryKey.OpenBaseKey(program.Hive, program.View);
@@ -302,7 +302,7 @@ public sealed partial class UninstallService
             sb.AppendLine($"✗ 删除注册表项失败: {ex.Message}");
         }
 
-        // 2) 可选：删除安装目录
+        // 2) Optional: Delete the installation directory
         if (deleteInstallFolder && !string.IsNullOrWhiteSpace(program.InstallLocation))
         {
             var dir = program.InstallLocation!;
@@ -327,7 +327,7 @@ public sealed partial class UninstallService
     }
 
     /// <summary>
-    /// 解析卸载命令行，拆分出可执行文件路径与参数。
+    /// Parse the uninstall command line to extract the executable file path and parameters.
     /// </summary>
     public static (string exe, string args) ParseCommandLine(string commandLine)
     {
@@ -346,7 +346,7 @@ public sealed partial class UninstallService
             return (commandLine.Trim('"'), string.Empty);
         }
 
-        // 未加引号：若包含 .exe，则以第一个 .exe 结尾处切分
+        // No quotes: If the string contains .exe, split it at the end of the first .exe
         var m = ExeSplitRegex().Match(commandLine);
         if (m.Success)
         {
@@ -355,7 +355,7 @@ public sealed partial class UninstallService
             return (exe, args);
         }
 
-        // 退化：按第一个空格切分
+        // Regression: Split by the first space
         var sp = commandLine.IndexOf(' ');
         return sp < 0
             ? (commandLine, string.Empty)
@@ -363,26 +363,26 @@ public sealed partial class UninstallService
     }
 
     /// <summary>
-    /// 删除安全检查。仅允许删除【本机本地磁盘】上、且非操作系统关键根目录的路径。
-    /// - 拒绝 UNC 与网络盘 / NAS（保护用户的网络存储）。
-    /// - 拒绝盘符根与约 12 个系统关键目录【整体】删除（其子目录仍可删）。
-    /// 除此之外的本地目录一律放行，直接强制删除，不做任何“跳过”。
+    /// Remove security checks. Only paths located on [this computer's local disk] that are not in the operating system's critical root directory may be deleted.
+    /// - Block UNC paths and network drives / NAS (to protect users' network storage).
+    /// - Do not delete the root of the drive or approximately 12 key system directories [as a whole] (their subdirectories may still be deleted).
+    /// All local directories other than these will be allowed through and immediately and forcibly deleted; no "skips" will be made.
     /// </summary>
     public static bool IsSafeToDelete(string path)
     {
         if (string.IsNullOrWhiteSpace(path)) return false;
 
-        // 仅限本机本地磁盘：网络位置（UNC / 映射网络盘 / NAS）一律禁止
+        // Limited to the local disk on this machine: Network locations (UNC / mapped network drives / NAS) are strictly prohibited.
         if (FileSystemUtil.IsNetworkPath(path)) return false;
 
         string full;
         try { full = StripLongPathPrefix(Path.GetFullPath(path)).TrimEnd('\\'); }
         catch { return false; }
 
-        if (full.Length <= 3) return false; // 盘符根，如 C:\
+        if (full.Length <= 3) return false; // Drive letter, such as C:\
 
-        // 灾难性根目录：整体删除会毁坏系统或抹掉全部用户数据，永不允许。
-        // 注意：这里只拦截“目录本身”，其下的子目录（真实软件残留）仍可删除。
+        // Catastrophic Root Directory: Deleting this directory entirely will destroy the system or erase all user data; this is never permitted.
+        // Note: This only blocks the "directory itself"; any subdirectories within it (actual software remnants) can still be deleted.
         var sysDrive = Path.GetPathRoot(Environment.GetFolderPath(Environment.SpecialFolder.Windows));
         if (string.IsNullOrEmpty(sysDrive)) sysDrive = @"C:\";
 
@@ -401,9 +401,9 @@ public sealed partial class UninstallService
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
             @"C:\Users",
-            Path.Combine(sysDrive, "Boot"),        // 启动配置
-            Path.Combine(sysDrive, "Recovery"),    // 恢复环境
-            Path.Combine(sysDrive, "Windows.old")  // 旧系统备份，默认不自动删除
+            Path.Combine(sysDrive, "Boot"),        // Startup Configuration
+            Path.Combine(sysDrive, "Recovery"),    // Recovery Environment
+            Path.Combine(sysDrive, "Windows.old")  // Backups of the old system are not automatically deleted by default.
         };
 
         foreach (var p in criticalRoots)
@@ -413,14 +413,14 @@ public sealed partial class UninstallService
                 return false;
         }
 
-        // WindowsApps（UWP 包目录）由 Appx 部署服务统一管理：绕开它直接删文件会造成
-        // “包在部署库中已注册但文件缺失”的不一致状态，本目录及其全部子目录一律拒绝。
+        // WindowsApps (the UWP package directory) is centrally managed by the AppX Deployment Service: Bypassing it to delete files directly will result in
+        // In the case of an inconsistency where a package is registered in the deployment repository but its files are missing, this directory and all its subdirectories will be rejected without exception.
         if (IsUnderWindowsApps(full)) return false;
 
         return true;
     }
 
-    /// <summary>路径是否位于 Program Files\WindowsApps（UWP 包库）之下（含目录本身）。</summary>
+    /// <summary>Is the path located under Program Files\WindowsApps (UWP package library), including the directory itself? </summary>
     private static bool IsUnderWindowsApps(string full)
     {
         foreach (var pf in new[]
@@ -438,7 +438,7 @@ public sealed partial class UninstallService
         return false;
     }
 
-    /// <summary>去除 \\?\ / \\?\UNC\ 长路径前缀：防止其绕过关键目录的字符串比对护栏。</summary>
+    /// <summary>Remove the \\?\ / \\?\UNC\ long path prefixes: this prevents them from bypassing the string comparison safeguards for critical directories.</summary>
     private static string StripLongPathPrefix(string path)
     {
         if (path.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase))
@@ -447,8 +447,8 @@ public sealed partial class UninstallService
     }
 
     /// <summary>
-    /// 文件级系统保护（6.5）：禁止删除位于 Windows / System32 / SysWOW64 等关键系统目录下的文件。
-    /// 网络盘 / NAS 也一律拒绝。与 <see cref="IsSafeToDelete"/> 互补（后者主要拦截目录根）。
+    /// File-Level System Protection (6.5): Prevents the deletion of files located in critical system directories such as Windows, System32, and SysWOW64.
+    /// Network drives and NAS devices are also rejected across the board. This is complementary to <see cref="IsSafeToDelete"/> (which primarily blocks the root directory).
     /// </summary>
     public static bool IsSafeFileToDelete(string path)
     {
@@ -467,9 +467,9 @@ public sealed partial class UninstallService
             Environment.GetFolderPath(Environment.SpecialFolder.Windows),
             Environment.GetFolderPath(Environment.SpecialFolder.System),    // System32
             Environment.GetFolderPath(Environment.SpecialFolder.SystemX86), // SysWOW64
-            Path.Combine(sysDrive, "Boot"),       // BIOS 引导配置（BCD 等），删除后系统无法启动
-            Path.Combine(sysDrive, "Recovery"),   // 恢复环境
-            Path.Combine(sysDrive, "Windows.old") // 旧系统备份
+            Path.Combine(sysDrive, "Boot"),       // BIOS boot configuration (BCD, etc.); if deleted, the system will fail to boot
+            Path.Combine(sysDrive, "Recovery"),   // Recovery Environment
+            Path.Combine(sysDrive, "Windows.old") // Backup of the Old System
         };
 
         foreach (var d in protectedDirs)
@@ -481,22 +481,22 @@ public sealed partial class UninstallService
                 return false;
         }
 
-        // 系统盘根下的启动/内存管理关键文件：重启延迟删除可绕过文件锁，删掉即无法开机
+        // Key boot and memory management files located in the system root directory: Delaying their deletion until after a reboot can bypass file locks; deleting them will prevent the system from booting.
         foreach (var f in new[] { "bootmgr", "BOOTNXT", "pagefile.sys", "hiberfil.sys", "swapfile.sys" })
         {
             if (full.Equals(Path.Combine(sysDrive, f), StringComparison.OrdinalIgnoreCase))
                 return false;
         }
 
-        // UWP 包库文件同样拒绝（与 IsSafeToDelete 的目录级拦截互补）
+        // UWP package files are also rejected (complementing the directory-level blocking provided by `IsSafeToDelete`)
         if (IsUnderWindowsApps(full)) return false;
 
         return true;
     }
 
     /// <summary>
-    /// 识别常见云同步根目录（OneDrive / Dropbox / Google Drive）。
-    /// 这类目录虽为本地路径，但整体删除会同步到云端，需强提示（不硬禁）。
+    /// Identify common cloud sync root directories (OneDrive, Dropbox, Google Drive).
+    /// Although these directories are local paths, deleting them entirely will be synchronized to the cloud, so a strong warning is required (but not a hard prohibition).
     /// </summary>
     public static bool IsCloudSyncRoot(string path)
     {

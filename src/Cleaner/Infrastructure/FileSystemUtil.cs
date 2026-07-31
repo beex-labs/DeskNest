@@ -3,11 +3,11 @@ using System.Runtime.InteropServices;
 
 namespace BeeXCleaner.Infrastructure;
 
-/// <summary>删除结果：已删除 / 已安排重启后删除（被占用或受保护）/ 失败。</summary>
+/// <summary>Deletion results: Deleted / Scheduled for deletion after reboot (in use or protected) / Failed. </summary>
 public enum DeleteResult { Removed, ScheduledReboot, Failed }
 
 /// <summary>
-/// 文件系统相关工具：安全目录测量、网络路径识别、健壮强制删除。
+/// File system-related tools: secure directory measurement, network path identification, and robust forced deletion.
 /// </summary>
 public static class FileSystemUtil
 {
@@ -17,7 +17,7 @@ public static class FileSystemUtil
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool MoveFileEx(string lpExistingFileName, string? lpNewFileName, int dwFlags);
 
-    // 递归枚举时跳过无权限目录与重解析点(junction/软链接)，避免抛异常或死循环
+    // When performing recursive enumeration, skip directories without access permissions and junction points (junction/symbolic links) to avoid throwing exceptions or entering an infinite loop.
     private static readonly EnumerationOptions RecurseSafe = new()
     {
         IgnoreInaccessible = true,
@@ -25,7 +25,7 @@ public static class FileSystemUtil
         AttributesToSkip = FileAttributes.ReparsePoint
     };
 
-    /// <summary>递归安全计算目录大小（字节）。无权限/重解析点自动跳过。</summary>
+    /// <summary> Recursively and safely calculates directory size (in bytes). Automatically skips directories without permissions or with re-resolved paths. </summary>
     public static long DirectorySize(string path)
     {
         long total = 0;
@@ -34,19 +34,19 @@ public static class FileSystemUtil
             foreach (var f in Directory.EnumerateFiles(path, "*", RecurseSafe))
             {
                 try { total += new FileInfo(f).Length; }
-                catch { /* 忽略无法访问的文件 */ }
+                catch { /* Ignore files that cannot be accessed */ }
             }
         }
-        catch { /* 忽略 */ }
+        catch { /* Ignore */ }
         return total;
     }
 
     /// <summary>
-    /// 健壮强制删除目录：逐文件尽力删除（能删的立即删），删不掉的（被占用/受保护）
-    /// 安排在系统重启后由 SYSTEM 删除；目录自底向上删除。做到最大程度零残留。
-    /// secureErase=true 时，删除前先用随机字节覆盖文件内容并写盘，使数据不可恢复。
-    /// killProcesses=true 时，遇到被占用项会结束占用它的非系统进程后重试；默认为 false，
-    /// 只关闭文件句柄，删不掉则安排重启后删除，避免默认静默杀进程导致用户数据丢失。
+    /// Robust Forced Directory Deletion: Deletes files one by one as much as possible (deleting immediately those that can be deleted); files that cannot be deleted (in use or protected)
+    /// Schedule deletion by SYSTEM after the system restarts; delete directories from the bottom up. Ensure minimal residual data remains.
+    /// When `secureErase=true`, the file contents are overwritten with random bytes and written to disk before deletion, making the data unrecoverable.
+    /// When `killProcesses=true`, if an occupied resource is encountered, the non-system process occupying it will be terminated before retrying; the default is `false`,
+    /// Only close the file handle; if the file cannot be deleted, schedule its deletion after a restart to prevent the default silent process termination from causing user data loss.
     /// </summary>
     public static DeleteResult ForceDeleteDirectory(string path, bool secureErase = false, bool killProcesses = false)
     {
@@ -54,7 +54,7 @@ public static class FileSystemUtil
 
         var scheduled = false;
 
-        // 1) 先逐个删除所有文件（避免“一个删不掉就整体失败”）
+        // 1) First, delete all files one by one (to avoid a situation where “if one file can’t be deleted, the entire process fails”).
         List<string> files;
         try { files = Directory.EnumerateFiles(path, "*", RecurseSafe).ToList(); }
         catch { files = new List<string>(); }
@@ -63,11 +63,11 @@ public static class FileSystemUtil
             if (DeleteFileRobust(f, secureErase, killProcesses) == DeleteResult.ScheduledReboot) scheduled = true;
         }
 
-        // 2) 目录自底向上删除（先深后浅），最后删根目录
+        // 2) Delete the directory from the bottom up (from deepest to shallowest), and delete the root directory last
         List<string> dirs;
         try { dirs = Directory.EnumerateDirectories(path, "*", RecurseSafe).ToList(); }
         catch { dirs = new List<string>(); }
-        dirs.Sort((a, b) => b.Length.CompareTo(a.Length)); // 越深越靠前
+        dirs.Sort((a, b) => b.Length.CompareTo(a.Length)); // The deeper, the closer to the front
         dirs.Add(path.TrimEnd('\\', '/'));
         foreach (var d in dirs)
         {
@@ -79,7 +79,7 @@ public static class FileSystemUtil
         return scheduled ? DeleteResult.ScheduledReboot : DeleteResult.Failed;
     }
 
-    /// <summary>健壮强制删除单个文件（可选安全擦除 → 清属性 → 直接删 → 关句柄 →〔可选〕结束进程 → 安排重启后删）。</summary>
+    /// <summary>Forcefully delete a single file (optional: secure erase → clear attributes → direct delete → close handle → [optional] terminate process → schedule deletion after reboot).</summary>
     public static DeleteResult ForceDeleteFile(string path, bool secureErase = false, bool killProcesses = false)
     {
         if (!File.Exists(path)) return DeleteResult.Removed;
@@ -90,18 +90,18 @@ public static class FileSystemUtil
     {
         if (TryDeleteFileOnce(file, secureErase)) return DeleteResult.Removed;
 
-        // ① 关闭其它进程持有的文件句柄后重试（不结束进程）
+        // ① Retry after closing the file handles held by other processes (without terminating the processes)
         try { if (FileUnlocker.TryUnlock(file) && TryDeleteFileOnce(file, secureErase)) return DeleteResult.Removed; }
         catch { }
 
-        // ② 仅在显式允许时结束占用进程后重试（运行中的程序把 EXE/DLL 作为映像加载时，仅关句柄不足以释放）
+        // ② Retry only after terminating the process that is holding the resource, if explicitly permitted (when a running program loads an EXE/DLL as an image, simply closing the handle is not sufficient to release the resource).
         if (killProcesses)
         {
             try { if (FileUnlocker.KillLockers(file) > 0 && TryDeleteFileOnce(file, secureErase)) return DeleteResult.Removed; }
             catch { }
         }
 
-        // ③ 兜底：安排系统重启后删除
+        // ③ Fallback: Schedule deletion after the system restarts
         try { if (MoveFileEx(file, null, MOVEFILE_DELAY_UNTIL_REBOOT)) return DeleteResult.ScheduledReboot; }
         catch { }
         return DeleteResult.Failed;
@@ -112,14 +112,14 @@ public static class FileSystemUtil
         try
         {
             ClearBlockingAttributes(file);
-            if (secureErase) OverwriteFileContents(file); // 覆盖字节后再删，防恢复
+            if (secureErase) OverwriteFileContents(file); // Overwrite the bytes before deleting to prevent recovery
             File.Delete(file);
             return true;
         }
         catch { return false; }
     }
 
-    /// <summary>用随机字节覆盖文件全部内容并强制写盘，使删除后数据不可被恢复工具还原。</summary>
+    /// <summary>Overwrites the entire contents of a file with random bytes and forces the data to be written to disk, making it impossible for data recovery tools to restore the data after deletion.</summary>
     public static void OverwriteFileContents(string path)
     {
         long len;
@@ -127,7 +127,7 @@ public static class FileSystemUtil
         catch { return; }
         if (len <= 0) return;
 
-        // WriteThrough 绕过系统缓存，确保随机字节真正落到磁盘对应簇上
+        // WriteThrough bypasses the system cache to ensure that random bytes are actually written to the corresponding clusters on the disk.
         using var fs = new FileStream(path, FileMode.Open, FileAccess.Write, FileShare.None,
             1 << 20, FileOptions.WriteThrough);
         var buffer = new byte[1 << 20]; // 1MB
@@ -140,27 +140,27 @@ public static class FileSystemUtil
             remaining -= chunk;
         }
         fs.Flush(flushToDisk: true);
-        fs.SetLength(0);   // 截断，抹掉长度信息
+        fs.SetLength(0);   // Truncate, remove length information
         fs.Flush(flushToDisk: true);
     }
 
     private static DeleteResult DeleteDirRobust(string dir, bool killProcesses)
     {
-        // recursive:false —— 目录内文件都已处理；仍非空(有待重启删除的项)则本目录也转重启删除
+        // recursive:false —— All files in the directory have been processed; if the directory is still non-empty (containing items to be deleted upon restart), this directory will also be marked for deletion upon restart
         if (TryDeleteDirOnce(dir)) return DeleteResult.Removed;
 
-        // ① 目录被占用（如作为某进程的当前工作目录）时，关闭其句柄后重试
+        // ① If the directory is in use (e.g., as the current working directory of a process), close its handle and retry.
         try { if (FileUnlocker.TryUnlock(dir) && TryDeleteDirOnce(dir)) return DeleteResult.Removed; }
         catch { }
 
-        // ② 仅在显式允许时结束占用进程后重试
+        // ② Retry only after terminating the occupying process, if explicitly permitted
         if (killProcesses)
         {
             try { if (FileUnlocker.KillLockers(dir) > 0 && TryDeleteDirOnce(dir)) return DeleteResult.Removed; }
             catch { }
         }
 
-        // ③ 兜底：安排系统重启后删除
+        // ③ Fallback: Schedule deletion after the system restarts
         try { if (MoveFileEx(dir, null, MOVEFILE_DELAY_UNTIL_REBOOT)) return DeleteResult.ScheduledReboot; }
         catch { }
         return DeleteResult.Failed;
@@ -172,7 +172,7 @@ public static class FileSystemUtil
         catch { return false; }
     }
 
-    /// <summary>清除会阻碍删除的属性（只读/隐藏/系统），保留目录标志。</summary>
+    /// <summary>Clears attributes that prevent deletion (Read-Only/Hidden/System), while retaining the directory flag.</summary>
     private static void ClearBlockingAttributes(string entry)
     {
         try
@@ -182,12 +182,12 @@ public static class FileSystemUtil
             if (cleared != attrs)
                 File.SetAttributes(entry, cleared);
         }
-        catch { /* 忽略无法修改属性的项 */ }
+        catch { /* Ignore items whose properties cannot be modified */ }
     }
 
     /// <summary>
-    /// 判断路径是否位于网络位置（UNC 路径或映射的网络盘 / NAS）。
-    /// 用于确保清理仅作用于本机本地磁盘。
+    /// Determine whether the path is a network location (UNC path or a mapped network drive/NAS).
+    /// Used to ensure that the cleanup operation applies only to the local disk on this machine.
     /// </summary>
     public static bool IsNetworkPath(string? path)
     {
@@ -197,10 +197,10 @@ public static class FileSystemUtil
         try { full = Path.GetFullPath(path); }
         catch { return false; }
 
-        // UNC：\\server\share 或 \\?\UNC\...
+        // UNC: \\server\share or \\?\UNC\...
         if (full.StartsWith(@"\\", StringComparison.Ordinal))
         {
-            // \\?\C:\ 这类本地长路径前缀不算网络
+            // \\?\C:\ Local long path prefixes like this are not considered network paths
             if (full.StartsWith(@"\\?\", StringComparison.Ordinal)
                 && !full.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase))
                 return false;
@@ -216,8 +216,8 @@ public static class FileSystemUtil
         }
         catch
         {
-            // 无法识别的卷/断开的映射盘：保守视为网络路径拒绝删除，
-            // 与“仅限本机本地磁盘”的安全语义一致（出错时宁可误拦不可误放）。
+            // Unrecognized volume/disconnected mapped drive: For safety, treat this as a network path and do not delete it,
+            // Consistent with the security semantics of “local disk on this machine only” (in case of an error, it is better to block by mistake than to allow access by mistake).
             return true;
         }
     }

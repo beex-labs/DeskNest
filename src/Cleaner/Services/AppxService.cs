@@ -8,14 +8,14 @@ using Microsoft.Win32;
 namespace BeeXCleaner.Services;
 
 /// <summary>
-/// 通过 PowerShell 枚举与卸载 UWP / Microsoft Store 应用。
+/// Enumerate and uninstall UWP and Microsoft Store apps using PowerShell.
 /// </summary>
 public sealed partial class AppxService
 {
     /// <summary>
-    /// 枚举当前用户的可卸载 UWP 应用。
-    /// Error 非空表示枚举失败（PowerShell 启动失败/超时/解析失败）：
-    /// 调用方据此区分“本机确无 UWP 应用”与“扫描失败”，禁止静默丢弃。
+    /// Enumerates the UWP apps that can be uninstalled by the current user.
+    /// Error: "Not empty" indicates an enumeration failure (PowerShell startup failure/timeout/parsing failure):
+    /// Based on this, the caller distinguishes between “No UWP apps found on this device” and “Scan failed,” and prohibits silent discard.
     /// </summary>
     public async Task<(List<InstalledProgram> Apps, string? Error)> ScanAsync()
     {
@@ -57,7 +57,7 @@ public sealed partial class AppxService
         }
         catch (Exception ex)
         {
-            // 解析失败返回已收集内容，但携带错误信号告知列表可能不完整
+            // If parsing fails, the parsed content is returned, but an error flag is included to indicate that the list may be incomplete.
             error = $"UWP 列表解析失败：{ex.Message}";
         }
 
@@ -66,13 +66,13 @@ public sealed partial class AppxService
             .ToList(), error);
     }
 
-    /// <summary>卸载指定 UWP 应用。</summary>
+    /// <summary>Uninstall a specific UWP app.</summary>
     public async Task<UninstallResult> UninstallAsync(InstalledProgram program)
     {
         if (string.IsNullOrWhiteSpace(program.PackageFullName))
             return UninstallResult.Fail("缺少 PackageFullName。");
-        // 包名将拼入 PowerShell 单引号字符串：含单引号即可逃逸出字符串边界执行任意命令，
-        // 与 ResidualCleaner.HasUnsafeQuote 的纵深防御对齐，直接拒绝（正常包名字符集不含引号）。
+        // The package name will be embedded in a PowerShell string enclosed in single quotes: including a single quote allows one to escape the string boundaries and execute arbitrary commands,
+        // Aligns with the layered defense provided by ResidualCleaner.HasUnsafeQuote; reject immediately (normal packet names do not contain quotation marks).
         if (program.PackageFullName!.Contains('\''))
             return UninstallResult.Fail("包名含非法字符（单引号），已拒绝执行。");
 
@@ -104,7 +104,7 @@ public sealed partial class AppxService
             if (proc is null)
                 return (false, string.Empty, "无法启动 PowerShell。");
 
-            // 强制 PowerShell 以 UTF-8 输出，避免中文发行商名/应用名出现乱码
+            // Force PowerShell to output in UTF-8 to prevent garbled characters in Chinese publisher and application names
             await proc.StandardInput.WriteLineAsync(
                 "$OutputEncoding=[Console]::OutputEncoding=[System.Text.Encoding]::UTF8").ConfigureAwait(false);
             await proc.StandardInput.WriteLineAsync(script).ConfigureAwait(false);
@@ -112,7 +112,7 @@ public sealed partial class AppxService
 
             var outTask = proc.StandardOutput.ReadToEndAsync();
             var errTask = proc.StandardError.ReadToEndAsync();
-            // 部署服务异常时 PowerShell 可能永久无输出：60s 超时兜底，避免刷新/卸载流程永久卡死与进程泄漏
+            // PowerShell May Remain Unresponsive Indefinitely During Service Deployment Errors: A 60-Second Timeout as a Fallback to Prevent the Refresh/Uninstall Process from Becoming Permanently Stuck and to Prevent Process Leaks
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
             try
             {
@@ -141,7 +141,7 @@ public sealed partial class AppxService
                 ? v2.ToString()
                 : null);
 
-    /// <summary>从证书主题中提取 CN 值作为发行商显示名。</summary>
+    /// <summary>Extract the CN value from the certificate subject as the issuer's display name.</summary>
     private static string? ExtractCn(string? publisher)
     {
         if (string.IsNullOrWhiteSpace(publisher)) return null;

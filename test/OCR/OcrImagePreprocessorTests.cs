@@ -8,7 +8,7 @@ namespace BeeX.DeskNest.Tests.OCR;
 
 public class OcrImagePreprocessorTests
 {
-    // ---- 辅助方法 ----
+    // ---- Supplementary Methods ----
 
     private static Bitmap CreateSolidBitmap(int width, int height, Color color)
     {
@@ -36,7 +36,7 @@ public class OcrImagePreprocessorTests
         return bmp;
     }
 
-    // ---- Analyze: 暗色图像 ----
+    // ---- Analyze: Dark Images ----
 
     [Fact]
     public void Analyze_DarkImage_LooksDark()
@@ -48,7 +48,7 @@ public class OcrImagePreprocessorTests
         stats.AverageLuminance.Should().BeLessThan(112);
     }
 
-    // ---- Analyze: 亮色图像 ----
+    // ---- Analyze: Bright-colored images ----
 
     [Fact]
     public void Analyze_BrightImage_NotDark()
@@ -60,19 +60,19 @@ public class OcrImagePreprocessorTests
         stats.AverageLuminance.Should().BeGreaterThan(112);
     }
 
-    // ---- Analyze: 低对比度 ----
+    // ---- Analysis: Low Contrast ----
 
     [Fact]
     public void Analyze_LowContrastImage()
     {
-        // 所有像素亮度接近 → 低对比度
+        // All pixels have similar brightness → Low contrast
         using var bmp = CreateSolidBitmap(100, 100, Color.FromArgb(255, 128, 128, 128));
         var stats = OcrImagePreprocessor.Analyze(bmp);
 
         stats.LowContrast.Should().BeTrue();
     }
 
-    // ---- Analyze: 高对比度（渐变） ----
+    // ---- Analyze: High Contrast (Gradient) ----
 
     [Fact]
     public void Analyze_HighContrastGradient_NotLowContrast()
@@ -83,7 +83,7 @@ public class OcrImagePreprocessorTests
         stats.LowContrast.Should().BeFalse();
     }
 
-    // ---- Analyze: 纯白图像 ----
+    // ---- Analyze: Pure White Image ----
 
     [Fact]
     public void Analyze_WhiteImage()
@@ -95,7 +95,7 @@ public class OcrImagePreprocessorTests
         stats.LooksDark.Should().BeFalse();
     }
 
-    // ---- Analyze: 纯黑图像 ----
+    // ---- Analyze: All-Black Image ----
 
     [Fact]
     public void Analyze_BlackImage()
@@ -107,7 +107,7 @@ public class OcrImagePreprocessorTests
         stats.LooksDark.Should().BeTrue();
     }
 
-    // ---- Prepare: 基本缩放 ----
+    // ---- Preparation: Basic Scaling ----
 
     [Fact]
     public void Prepare_SmallImage_ScaledUp()
@@ -115,7 +115,7 @@ public class OcrImagePreprocessorTests
         using var source = CreateSolidBitmap(50, 50, Color.Gray);
         using var result = OcrImagePreprocessor.Prepare(source, 1024);
 
-        // 小图被放大，结果应大于原图
+        // When the small image is enlarged, the result should be larger than the original image.
         result.Width.Should().BeGreaterThan(50);
         result.Height.Should().BeGreaterThan(50);
     }
@@ -126,13 +126,13 @@ public class OcrImagePreprocessorTests
         using var source = CreateSolidBitmap(3000, 3000, Color.Gray);
         using var result = OcrImagePreprocessor.Prepare(source, 1024);
 
-        // 大图被缩小，最大边不超过 maxImageDimension + padding
+        // Large images are resized so that their longest side does not exceed maxImageDimension + padding
         // padding = min(16, max(0, (1024 - contentSize) / 2))
         // contentSize <= 1024, so result <= 1024 + 32 = 1056
         Math.Max(result.Width, result.Height).Should().BeLessThanOrEqualTo(1056);
     }
 
-    // ---- Prepare: 反色 ----
+    // ---- Prepare: Invert Colors ----
 
     [Fact]
     public void Prepare_WithInvert_ProducesResult()
@@ -145,7 +145,7 @@ public class OcrImagePreprocessorTests
         result.Height.Should().BeGreaterThan(0);
     }
 
-    // ---- Prepare: 二值化 ----
+    // ---- Preparation: Binarization ----
 
     [Fact]
     public void Prepare_WithBinarize_ProducesResult()
@@ -157,7 +157,7 @@ public class OcrImagePreprocessorTests
         result.Width.Should().BeGreaterThan(0);
     }
 
-    // ---- Prepare: 增强对比度 ----
+    // ---- Prepare: Increase Contrast ----
 
     [Fact]
     public void Prepare_WithEnhanceContrast_ProducesResult()
@@ -168,7 +168,7 @@ public class OcrImagePreprocessorTests
         result.Should().NotBeNull();
     }
 
-    // ---- Prepare: 太小图像抛异常 ----
+    // ---- Prepare: Exception thrown for images that are too small ----
 
     [Fact]
     public void Prepare_TooSmallImage_ThrowsException()
@@ -178,13 +178,13 @@ public class OcrImagePreprocessorTests
         act.Should().Throw<InvalidOperationException>();
     }
 
-    // ---- Prepare: maxImageDimension 被 clamp ----
+    // ---- Prepare: maxImageDimension is clamped ----
 
     [Fact]
     public void Prepare_MaxDimensionClamped()
     {
         using var source = CreateSolidBitmap(100, 100, Color.Gray);
-        // maxImageDimension 太小会被 clamp 到 256
+        // If `maxImageDimension` is too small, it will be clamped to 256.
         using var result = OcrImagePreprocessor.Prepare(source, 10);
 
         result.Should().NotBeNull();
@@ -200,11 +200,11 @@ public class OcrImagePreprocessorTests
         using var result = OcrImagePreprocessor.Prepare(source, 1024, leftCropPixels: 20);
 
         result.Should().NotBeNull();
-        // 裁剪后宽度应小于未裁剪
+        // The width after trimming should be less than the width before trimming.
         result.Width.Should().BeGreaterThan(0);
     }
 
-    // ---- CreateRecoveryCandidates: 暗色图像 ----
+    // ---- CreateRecoveryCandidates: Dark Image ----
 
     [Fact]
     public void CreateRecoveryCandidates_DarkImage_ReturnsDarkCandidates()
@@ -225,7 +225,7 @@ public class OcrImagePreprocessorTests
         }
     }
 
-    // ---- CreateRecoveryCandidates: 亮色图像 ----
+    // ---- CreateRecoveryCandidates: Bright-colored images ----
 
     [Fact]
     public void CreateRecoveryCandidates_BrightImage_ReturnsContrastCandidate()
@@ -246,7 +246,7 @@ public class OcrImagePreprocessorTests
         }
     }
 
-    // ---- OcrImageStats: LooksDark 阈值 ----
+    // ---- OcrImageStats: LooksDark Threshold ----
 
     [Theory]
     [InlineData(100, 200, true)]   // avg < 112 → dark
@@ -259,7 +259,7 @@ public class OcrImagePreprocessorTests
         stats.LooksDark.Should().Be(expectedDark);
     }
 
-    // ---- OcrImageStats: LowContrast 阈值 ----
+    // ---- OcrImageStats: LowContrast Threshold ----
 
     [Theory]
     [InlineData(0, 47, true)]    // diff < 48 → low contrast

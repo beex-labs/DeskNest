@@ -5,8 +5,8 @@ using System.Text;
 
 namespace BeeX.DeskNest;
 
-// 視窗透明化核心：以 WS_EX_LAYERED + SetLayeredWindowAttributes 調整任意視窗整體透明度，
-// 記錄原始狀態以便還原；不注入 DLL、不修改目標程式。功能取自 BeeX_ClearWindow 並整合進 DeskNest。
+// Window transparency core: adjusts the overall opacity of any window via WS_EX_LAYERED + SetLayeredWindowAttributes,
+// recording the original state so it can be restored; does not inject a DLL or modify the target program.
 public sealed class WindowTransparencyService
 {
     sealed class WindowState
@@ -66,7 +66,7 @@ public sealed class WindowTransparencyService
         return restored;
     }
 
-    // 最小化所有已被透明化的視窗（供 Alt+X 全域快捷鍵調用），保留透明度記錄不還原。
+    // Minimizes all windows that have been made transparent (for the Alt+X global shortcut), keeping their transparency records without restoring.
     public int MinimizeAllTransparent()
     {
         var count = 0;

@@ -11,7 +11,7 @@ using IoPath=System.IO.Path;
 
 namespace BeeX.DeskNest;
 
-/// <summary>剪輯器專案管理：新建/打開/保存/另存、自動保存、恢復、恢復默認設置（JSON DTO 序列化）。</summary>
+/// <summary>Editor Project Management: New/Open/Save/Save As, Auto-Save, Restore, Restore Defaults (JSON DTO serialization). </summary>
 public sealed partial class VideoEditorWindow
 {
     sealed class ClipDto{public string Source="";public double SrcDuration;public bool HasAudio;public int SrcW,SrcH;public double In,Out,Speed=1;public bool PreservePitch=true,MuteAfterSpeed;public int Rotate;public bool FlipH,FlipV;public double CropL,CropT,CropR,CropB,Exposure,Temperature,TintV,Shadows,Highlights,Sharpen,Brightness,Contrast=1,Saturation=1;public bool Mute;public double Volume=1,FadeIn,FadeOut;public bool Denoise;}

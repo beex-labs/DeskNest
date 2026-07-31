@@ -5,8 +5,8 @@ using System.Reflection;
 namespace BeeX.DeskNest;
 
 /// <summary>
-/// ffmpeg 解析與調用。優先順序：在線安裝目錄（FfmpegInstallerService）→ 舊版本地緩存 → 嵌入資源解壓（舊版兼容）→ 程序目錄旁 → 系統 PATH。
-/// ffmpeg.exe 不再內置，缺失時由 FfmpegInstallerService 引導用戶按需下載。
+/// Resolves and invokes ffmpeg. Priority: online install directory (FfmpegInstallerService) -> legacy local cache -> embedded-resource extraction (legacy compat) -> next to the program directory -> system PATH.
+/// ffmpeg.exe is no longer bundled; when missing, FfmpegInstallerService guides the user to download it on demand.
 /// </summary>
 public static class FfmpegService
 {
@@ -15,10 +15,10 @@ public static class FfmpegService
 
     public static string CacheDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"BeeX DeskNest","ffmpeg");
 
-    /// <summary>安裝/刪除 ffmpeg 後重置路徑緩存，下次調用重新探測。</summary>
+    /// <summary>Resets the path cache after installing/removing ffmpeg so the next call re-probes.</summary>
     public static void Invalidate(){lock(gate)cachedPath=null;}
 
-    /// <summary>返回可用的 ffmpeg.exe 路徑；找不到返回 null。</summary>
+    /// <summary>Returns an available ffmpeg.exe path, or null if not found.</summary>
     public static string? EnsurePath()
     {
         lock(gate)
@@ -70,7 +70,7 @@ public static class FfmpegService
 
     public static bool IsAvailable => EnsurePath()!=null;
 
-    /// <summary>啟動一個持續運行的 ffmpeg 進程（如錄製）。redirectStdin=true 時可寫入 'q' 優雅停止。</summary>
+    /// <summary>Starts a long-running ffmpeg process (e.g. recording). When redirectStdin=true, writing 'q' stops it gracefully.</summary>
     public static Process? Start(string args,bool redirectStdin=false)
     {
         var exe=EnsurePath();
@@ -94,14 +94,14 @@ public static class FfmpegService
         return proc;
     }
 
-    /// <summary>啟動一個以 stdin 讀取 rawvideo(bgra) 幀、編碼為 MP4 的 ffmpeg 進程。用自抓幀管線餵幀。</summary>
+    /// <summary>Starts an ffmpeg process that reads rawvideo(bgra) frames from stdin and encodes to MP4. Fed by the self-grabbed frame pipeline.</summary>
     public static Process? StartRawEncoder(int w,int h,int fps,string outPath)
     {
         var args=$"-y -f rawvideo -pixel_format bgra -video_size {w}x{h} -framerate {fps} -i pipe:0 -an -c:v libx264 -preset veryfast -pix_fmt yuv420p -movflags +faststart \"{outPath}\"";
         return Start(args,redirectStdin:true);
     }
 
-    /// <summary>同步運行 ffmpeg 到結束，返回退出碼（找不到 ffmpeg 返回 -1）。</summary>
+    /// <summary>Runs ffmpeg synchronously to completion and returns the exit code (-1 if ffmpeg is not found).</summary>
     public static int RunToEnd(string args)
     {
         var proc=Start(args,false);
@@ -112,7 +112,7 @@ public static class FfmpegService
         return code;
     }
 
-    /// <summary>向錄製進程發送 'q' 以優雅結束並完成檔案封裝。</summary>
+    /// <summary>Sends 'q' to the recording process to end gracefully and finalize the file container.</summary>
     public static void GracefulStop(Process? proc)
     {
         if(proc==null||proc.HasExited)return;
@@ -120,7 +120,7 @@ public static class FfmpegService
         try{if(!proc.WaitForExit(4000)){proc.Kill();}}catch{}
     }
 
-    /// <summary>用 ffmpeg -i 讀取媒體資訊（時長/是否有音軌/畫面尺寸）。找不到返回默認。</summary>
+    /// <summary>Reads media info via ffmpeg -i (duration / whether it has an audio track / frame size). Returns defaults if not found.</summary>
     public static (double duration,bool hasAudio,int w,int h) Probe(string file)
     {
         var exe=EnsurePath();
@@ -143,7 +143,7 @@ public static class FfmpegService
         return (dur,aud,w,h);
     }
 
-    /// <summary>一次 ffmpeg 調用在 [inSec,inSec+dur] 內均勻抽取 count 張縮圖（高 height），返回已生成的檔案路徑。</summary>
+    /// <summary>In one ffmpeg call, evenly extracts count thumbnails (height high) within [inSec, inSec+dur], returning the generated file paths.</summary>
     public static List<string> ExtractThumbs(string src,double inSec,double dur,int count,int height,string outDir,string prefix)
     {
         var res=new List<string>();

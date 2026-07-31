@@ -5,8 +5,8 @@ using NAudio.Wave;
 namespace BeeX.DeskNest;
 
 /// <summary>
-/// 用 WASAPI 同時採集「系統聲音（環回）」與「麥克風」，各自寫入獨立 WAV，
-/// 之後交由 ffmpeg 與影片混合。任一路不可用時自動跳過，不影響另一路與影片。
+/// Uses WASAPI to capture the system sound (loopback) and the microphone at the same time, writing each to a separate WAV,
+/// which ffmpeg later mixes with the video. If either stream is unavailable it is skipped automatically without affecting the other stream or the video.
 /// </summary>
 public sealed class AudioCapture : IDisposable
 {
@@ -17,7 +17,7 @@ public sealed class AudioCapture : IDisposable
     public string? SystemWavPath { get; private set; }
     public string? MicWavPath { get; private set; }
 
-    /// <summary>暫停期間丟棄音頻寫入，使音頻時長與（同樣暫停的）影片一致。</summary>
+    /// <summary>Discards audio writes while paused so the audio duration matches the (equally paused) video.</summary>
     public volatile bool Paused;
 
     public void Start(string dir)

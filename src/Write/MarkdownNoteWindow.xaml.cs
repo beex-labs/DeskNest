@@ -76,14 +76,14 @@ public partial class MarkdownNoteWindow : Window
         ThemeService.Attach(this);
         _theme.Apply("host");
 
-        // 深色模式防白闪：WebView2 首帧渲染前显示的是 DefaultBackgroundColor（默认纯白），
-        // 且页面要等 setTheme 消息才切深色 —— 所以按主题预设底色，并在编辑器就绪、
-        // 主题已应用后再显示编辑区（就绪前露出窗口自身的 Bx 背景色）。
+        // Prevent white flash in dark mode: before WebView2 renders its first frame it shows DefaultBackgroundColor (pure white by default),
+        // and the page only switches to dark after the setTheme message -- so preset the backdrop by theme, and show the
+        // editor area only after the editor is ready and the theme is applied (before that, the window's own Bx backdrop shows).
         ApplyWebViewBackdrop();
         Web.Visibility = Visibility.Hidden;
         _bridge.Ready += async (_, _) =>
         {
-            await System.Threading.Tasks.Task.Delay(60); // 给页面一帧时间应用主题样式
+            await System.Threading.Tasks.Task.Delay(60); // give the page one frame to apply theme styles
             await Dispatcher.InvokeAsync(() => Web.Visibility = Visibility.Visible);
         };
 

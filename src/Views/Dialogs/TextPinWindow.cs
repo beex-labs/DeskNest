@@ -13,8 +13,8 @@ using WpfMenuItem=System.Windows.Controls.MenuItem;
 namespace BeeX.DeskNest;
 
 /// <summary>
-/// 「盯住文字」窗口：把剪貼板中的任意文字釘在螢幕上，始終置頂、可拖動、雙擊關閉，
-/// 右鍵提供複製 / 關閉。純浮層，不參與截圖。
+/// "Pin text" window: pins any text from the clipboard on screen, always topmost, draggable, closed by double-click,
+/// with copy/close on right-click. A pure overlay, not captured in screenshots.
 /// </summary>
 public sealed class TextPinWindow : Window
 {
@@ -75,7 +75,7 @@ public sealed class TextPinWindow : Window
         KeyDown+=(_,e)=>{if(e.Key==Key.Escape)Close();};
     }
 
-    /// <summary>讀取傳入文字並在螢幕上釘一個置頂浮層。</summary>
+    /// <summary>Reads the given text and pins a topmost overlay on screen.</summary>
     public static void Pin(string text)
     {
         if(string.IsNullOrWhiteSpace(text))return;

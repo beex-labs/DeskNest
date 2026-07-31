@@ -3,7 +3,7 @@ using System.Windows.Input;
 namespace BeeXCleaner.Infrastructure;
 
 /// <summary>
-/// 同步命令。
+/// Synchronization command.
 /// </summary>
 public sealed class RelayCommand : ICommand
 {
@@ -33,7 +33,7 @@ public sealed class RelayCommand : ICommand
 }
 
 /// <summary>
-/// 异步命令，执行期间自动禁用以避免重入。
+/// Asynchronous command; automatically disabled during execution to prevent re-entry.
 /// </summary>
 public sealed class AsyncRelayCommand : ICommand
 {
@@ -64,7 +64,7 @@ public sealed class AsyncRelayCommand : ICommand
         }
         catch (Exception ex)
         {
-            // async void 内的异常会绕过调用方直入 Dispatcher；先落盘再抛给全局处理器弹窗
+            // Exceptions within `async void` bypass the caller and go directly to the Dispatcher; they are first written to disk and then thrown to the global handler to display a pop-up window.
             AppLogger.Error("异步命令执行异常", ex);
             throw;
         }

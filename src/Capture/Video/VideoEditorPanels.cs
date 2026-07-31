@@ -18,7 +18,7 @@ using IoPath=System.IO.Path;
 
 namespace BeeX.DeskNest;
 
-/// <summary>剪輯器屬性面板（分頁）+ 撤銷/重做 + 複製/合併/逐幀 + 疊加對象管理。</summary>
+/// <summary>Clip Editor Properties Panel (tabs) + Undo/Redo + Copy/Merge/Frame-by-Frame + Overlay Object Management. </summary>
 public sealed partial class VideoEditorWindow
 {
     bool syncing;
@@ -28,7 +28,7 @@ public sealed partial class VideoEditorWindow
     StackPanel ovEditPanel=new();
     static readonly Brush Dark=new SolidColorBrush(Color.FromRgb(20,28,48));
 
-    // ---- 撤銷/重做（整專案 JSON 快照） ----
+    // ---- Undo/Redo (Entire Project JSON Snapshot) ----
     void Snapshot(){ try{ undoStack.Add(ProjectToJson()); if(undoStack.Count>50)undoStack.RemoveAt(0); redoStack.Clear(); }catch{} }
     void Undo(){ if(undoStack.Count==0)return; try{ redoStack.Add(ProjectToJson()); var s=undoStack[^1];undoStack.RemoveAt(undoStack.Count-1); LoadProjectJson(s); }catch{} }
     void Redo(){ if(redoStack.Count==0)return; try{ undoStack.Add(ProjectToJson()); var s=redoStack[^1];redoStack.RemoveAt(redoStack.Count-1); LoadProjectJson(s); }catch{} }
@@ -42,7 +42,7 @@ public sealed partial class VideoEditorWindow
         Snapshot();sel.Out=b.Out;clips.RemoveAt(i+1);RebuildTimeline();GenerateThumbs(sel);
     }
 
-    // ---- 分頁 ----
+    // ---- Page Break ----
     FrameworkElement BuildTabs()
     {
         syncers.Clear();
@@ -63,7 +63,7 @@ public sealed partial class VideoEditorWindow
 
     void SyncTabs(){ syncing=true; foreach(var a in syncers){try{a();}catch{}} syncing=false; }
 
-    // 綁定輔助
+    // Binding Assistance
     FrameworkElement ClipSlider(string name,double min,double max,Func<EditClip,double> get,Action<EditClip,double> set,bool live=false)
     {
         var s=new Slider{Minimum=min,Maximum=max,Width=138,VerticalAlignment=VerticalAlignment.Center};

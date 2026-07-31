@@ -26,7 +26,7 @@
                 <ColumnDefinition Width="1.6*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- 会话列表 -->
+            <!-- Session List -->
             <Border Grid.Column="0" CornerRadius="4" Background="White"
                     BorderBrush="{StaticResource BorderColor}" BorderThickness="1">
                 <DockPanel>
@@ -37,7 +37,7 @@
                 </DockPanel>
             </Border>
 
-            <!-- 备份文件列表 -->
+            <!-- List of Backup Files -->
             <Border Grid.Column="1" Margin="10,0,0,0" CornerRadius="4" Background="White"
                     BorderBrush="{StaticResource BorderColor}" BorderThickness="1">
                 <DockPanel>

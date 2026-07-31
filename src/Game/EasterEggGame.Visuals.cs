@@ -23,11 +23,11 @@ partial class EasterEggGame
     {
         if(ballShell==null)return;
         Canvas.SetLeft(ballShell,ballX-vLeft);Canvas.SetTop(ballShell,ballY-vTop);
-        // 球體隨水平速度滾動，增強馬里奧式運動反饋
+        // The ball rolls with horizontal velocity, reinforcing the Mario-style motion feedback
         ballSpin.Angle+=velX*.14*.016*60;
     }
 
-    // 勝利吸入動效：懸浮球旋轉 720° 同時縮小並被拉進黑洞中心，隨後彩帶慶祝
+    // Victory suck-in animation: the floating ball rotates 720 degrees while shrinking and being pulled into the black hole center, followed by confetti celebration
     void StepWinAnim(double dt)
     {
         winAnimT+=dt;var t=Math.Min(1,winAnimT/.65);var ease=t*t;
@@ -37,7 +37,7 @@ partial class EasterEggGame
         if(t>=1){phase=Phase.Celebrate;celebrateT=0;SpawnCelebration();}
     }
 
-    /// <summary>彩帶雨 + 橫幅：140 條彩帶自橫幅上方炸開飄落，橫幅居中顯示「恭喜你！手指康復運動 xx 秒」</summary>
+    /// <summary>Confetti rain + banner: 140 ribbons burst above the banner and drift down; the banner is centered showing the congratulations text.</summary>
     void SpawnCelebration()
     {
         var work=SystemParameters.WorkArea;
@@ -79,7 +79,7 @@ partial class EasterEggGame
         if(celebrateT>=3.6)End(EggResult.Won);
     }
 
-    /// <summary>全屏遊戲畫布：覆蓋整個虛擬桌面的透明置頂窗口，WS_EX_TRANSPARENT 點擊穿透不擋桌面操作</summary>
+    /// <summary>Full-screen game canvas: a transparent topmost window covering the whole virtual desktop; WS_EX_TRANSPARENT makes clicks pass through so it does not block desktop operations.</summary>
     void BuildOverlay()
     {
         canvas=new Canvas();
@@ -94,7 +94,7 @@ partial class EasterEggGame
         };
     }
 
-    // 遊戲球：復刻懸浮球外觀（深藏藍圓 + 蜂蜜橙描邊 + BeeX Logo），畫在畫布上、隨速度滾動
+    // Game ball: reuses the floating-ball look (dark navy circle + honey-orange outline + BeeX logo), drawn on the canvas and rolling with velocity
     void BuildBallVisual()
     {
         var logo=new WpfImage{Source=new BitmapImage(new Uri("pack://application:,,,/Assets/BeeX.png")),Width=34,Height=34,Stretch=Stretch.Uniform};
@@ -104,7 +104,7 @@ partial class EasterEggGame
         canvas!.Children.Add(ballShell);
     }
 
-    // 黑洞：深色徑向漸變 + 兩圈虛線光環 + 純黑核心，整體持續旋轉形成漩渦特效
+    // Black hole: dark radial gradient + two dashed halos + pure black core, rotating continuously for a vortex effect
     void BuildHoleVisual(double x,double y)
     {
         var g=new Grid{Width=84,Height=84,RenderTransformOrigin=new WpfPoint(.5,.5)};
@@ -118,7 +118,7 @@ partial class EasterEggGame
         canvas!.Children.Add(g);
     }
 
-    // 金幣：金色圓片 + 高光內圈，水平壓縮循環動畫模擬旋轉
+    // Coin: golden disc + highlight inner ring, horizontally squashed looping animation simulating spin
     void AddCoin(double x,double y)
     {
         var g=new Grid{Width=CoinSize,Height=CoinSize,RenderTransformOrigin=new WpfPoint(.5,.5)};
@@ -131,7 +131,7 @@ partial class EasterEggGame
         coins.Add(new Coin{X=x,Y=y,Visual=g});
     }
 
-    // 蜂賊：琥珀圓身 + 黑條紋 + 撲翼，沿平台頂面來回巡邏
+    // Bee thief: amber round body + black stripes + flapping wings, patrolling back and forth on the platform top
     Grid BuildFoeVisual()
     {
         var g=new Grid{Width=FoeSize,Height=FoeSize};
@@ -147,7 +147,7 @@ partial class EasterEggGame
         return g;
     }
 
-    // HUD：主屏頂部居中的計時 + 金幣計數，遊戲即「手指康復運動」秒錶
+    // HUD: top-center timer + coin count on the primary screen; the game is a "finger recovery exercise" stopwatch
     void BuildHud()
     {
         var work=SystemParameters.WorkArea;

@@ -14,9 +14,9 @@ using HorizontalAlignment=System.Windows.HorizontalAlignment;
 namespace BeeX.DeskNest;
 
 /// <summary>
-/// ffmpeg 元件在線安裝器：不再隨主程式內置（便攜版體積歸零），首次使用錄屏/剪輯時
-/// 或在設定頁按需下載，僅抽取 ffmpeg.exe 保存到 BeeX 根目錄 Components\ffmpeg，
-/// 與 OCR 側車（OcrInstallerService）同一套按需下載範式。
+/// Online installer for the ffmpeg component: no longer bundled with the main app (the portable build's size drops to zero). On first use of recording/editing
+/// or on demand from the settings page, it downloads and extracts only ffmpeg.exe to Components\ffmpeg under the BeeX root directory,
+/// following the same on-demand download pattern as the OCR sidecar (OcrInstallerService).
 /// </summary>
 static class FfmpegInstallerService
 {
@@ -28,7 +28,7 @@ static class FfmpegInstallerService
 
     public static bool IsInstalled=>File.Exists(ExePath)&&new FileInfo(ExePath).Length>1_000_000;
 
-    // ---- 後台安裝管理：下載掛後台不佔用前台，完成/失敗以非模態通知回報 ----
+    // ---- Background install management: the download runs in the background without blocking the foreground; success/failure is reported via a non-modal notification ----
     static Task? installTask;
     static (string Phase,int Percent) lastProgress=("download",-1);
     public static bool Installing=>installTask is {IsCompleted:false};
@@ -36,7 +36,7 @@ static class FfmpegInstallerService
     public static event Action<(string Phase,int Percent)>? ProgressChanged;
     public static event Action<Exception?>? InstallFinished;
 
-    /// <summary>在 UI 線程調用：啟動後台下載（已在下載/已安裝則忽略），進度與完成事件在 UI 線程回調。</summary>
+    /// <summary>Call on the UI thread: start the background download (ignored if already downloading/installed); progress and completion events are called back on the UI thread.</summary>
     public static void StartBackgroundInstall(string language)
     {
         if(Installing||IsInstalled)return;
@@ -59,7 +59,7 @@ static class FfmpegInstallerService
         }
     }
 
-    /// <summary>下載官方構建 zip，僅抽取 ffmpeg.exe 到安裝目錄。progress:(階段, 0-100，-1 表示不確定)。</summary>
+    /// <summary>Downloads the official build zip and extracts only ffmpeg.exe to the install directory. progress:(phase, 0-100, -1 means indeterminate).</summary>
     public static async Task InstallAsync(IProgress<(string Phase,int Percent)> progress,CancellationToken cancellation=default)
     {
         var tempZip=IoPath.Combine(IoPath.GetTempPath(),$"beex-ffmpeg-{Guid.NewGuid():N}.zip");
@@ -104,7 +104,7 @@ static class FfmpegInstallerService
         }
     }
 
-    /// <summary>下載對話框（說明 → 啟動後台下載 → 可關窗掛後台）；若用戶留在窗內等到完成則返回 true 可直接續接原流程。</summary>
+    /// <summary>Download dialog (explanation -> start background download -> window can close to run in background); if the user stays in the window until completion it returns true so the original flow can continue directly.</summary>
     public static bool ShowInstallDialog(string language)
     {
         if(FfmpegService.IsAvailable)return true;
@@ -123,7 +123,7 @@ static class FfmpegInstallerService
         var actions=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};
         var cancel=new Button{Content=T("取消"),MinWidth=88,Background=new SolidColorBrush(Color.FromRgb(255,243,229)),Foreground=foreground};
         var download=new Button{Content=T("下載 ffmpeg 元件"),MinWidth=130,Margin=new Thickness(8,0,0,0),Background=new SolidColorBrush(Color.FromRgb(255,138,0)),Foreground=Brushes.White};
-        // 後台下載：對話框只是進度視窗，隨時可關；留在窗內等到完成則返回 true 續接原流程
+        // Background download: the dialog is just a progress window and can be closed anytime; staying until completion returns true to continue the original flow
         void EnterDownloadingUi(){download.Visibility=Visibility.Collapsed;cancel.Content=T("後台繼續");body.Text=ProgressText(LastProgress);}
         Action<(string Phase,int Percent)> onProgress=p=>body.Text=ProgressText(p);
         Action<Exception?>? onFinished=null;
@@ -135,7 +135,7 @@ static class FfmpegInstallerService
         };
         ProgressChanged+=onProgress;InstallFinished+=onFinished;
         dialog.Closed+=(_,_)=>{ProgressChanged-=onProgress;InstallFinished-=onFinished;};
-        // 關窗掛後台時提示用戶可在設定頁查看進度
+        // When closing the window to run in the background, tell the user progress can be viewed on the settings page
         void CloseToBackground(){var backgrounded=Installing;dialog.DialogResult=false;dialog.Close();if(backgrounded)BeeXDialog.Notify(null,T("下載 ffmpeg 元件"),T("下載已轉入後台，可前往 設定 → 診斷與維護 查看進度。"),new AppState{Language=language});}
         cancel.Click+=(_,_)=>CloseToBackground();
         download.Click+=(_,_)=>{StartBackgroundInstall(language);EnterDownloadingUi();};

@@ -33,7 +33,7 @@ sealed partial class ScreenCaptureOverlay
 {
     void BuildToolbar()
     {
-        // ToolTip「文案    快捷鍵」四空格分隔：Localization.T 只翻譯前半段，快捷鍵原樣保留
+        // ToolTip "Text    Shortcut": Separated by four spaces: Localization.T translates only the first part; the shortcut remains unchanged.
         string Tip(string text,string keyHint)=>L(text)+"    "+keyHint;
         var row=new StackPanel{Orientation=Orientation.Horizontal};
         row.Children.Add(IconButton("check",Tip("複製","Ctrl+C"),CopyOnly,primary:true));
@@ -380,10 +380,10 @@ sealed partial class ScreenCaptureOverlay
 
     System.Windows.Media.Brush HighlighterStroke(){var c=annotationTextColors[annotationTextColorIndex];return new SolidColorBrush(Color.FromArgb(110,c.R,c.G,c.B));}
 
-    // 無填充（alpha=0）時回傳 null：讓形狀內部不攔截命中測試，才能在框內繼續畫新標注，點中描邊才是選中
+    // Returns null when there is no fill (alpha=0): This prevents the shape's interior from intercepting hit tests, allowing new annotations to be drawn inside the bounding box; clicking the stroke is what selects the shape.
     System.Windows.Media.Brush? ShapeFill(){var c=annotationFillColors[annotationFillColorIndex];return c.A==0?null:new SolidColorBrush(c);}
 
-    // 箭頭的幾何狀態：起點/終點與文字沿線位置參數（0~1），掛在箭頭組 Canvas.Tag 上
+    // Geometric properties of the arrow: start/end points and text position along the line (0–1), attached to the Canvas.Tag of the arrow group
     sealed class ArrowInfo{public Point Start,End;public double TextT=.5;}
 
     void AttachAnnotationEvents(UIElement element)
@@ -416,8 +416,8 @@ sealed partial class ScreenCaptureOverlay
         element.MouseEnter+=(_,_)=>{if(element is FrameworkElement fe)fe.Cursor=CanDirectEdit(element)&&element is not WpfTextBox?Cursors.SizeAll:null;};
     }
 
-    // 畫筆/螢光筆/馬賽克/橡皮擦/序號/取色器工具下不攔截點擊（保證能在既有標注上繼續塗畫）；
-    // 其餘工具點中矩形/圓形/線條/箭頭/文字即可直接選中二次調整（拖動移動、拖端點/角點變形）
+    // Click actions are not intercepted for the Brush, Highlighter, Mosaic, Eraser, Sequence Number, and Color Picker tools (ensuring you can continue drawing over existing annotations);
+    // For the other tools, simply click on a rectangle, circle, line, arrow, or text to select it and make further adjustments (drag to move, or drag endpoints or corner points to reshape).
     bool CanDirectEdit(UIElement element)
     {
         if(annotationTool==AnnotationTool.Select)return true;
@@ -441,7 +441,7 @@ sealed partial class ScreenCaptureOverlay
         annResizer?.InvalidateArrange();
     }
 
-    // 雙擊箭頭：沿箭頭方向嵌入文字（箭桿斷開讓位），文字框未聚焦時可沿線拖拽擺放，雙擊文字框進入編輯
+    // Double-click the arrow: Insert text along the direction of the arrow (the arrowhead breaks to make room); when the text box is not selected, you can drag and drop it along the line; double-click the text box to enter edit mode.
     void AddArrowText(Canvas group)
     {
         if(group.Children.OfType<WpfTextBox>().FirstOrDefault() is WpfTextBox exist){exist.Focus();exist.SelectAll();return;}
@@ -462,14 +462,14 @@ sealed partial class ScreenCaptureOverlay
         tb.PreviewMouseLeftButtonDown+=(_,e)=>
         {
             if(e.ClickCount==2){tb.Focus();tb.SelectAll();e.Handled=true;return;}
-            if(tb.IsKeyboardFocusWithin)return;// 編輯態保留原生文字選擇
+            if(tb.IsKeyboardFocusWithin)return;// Editor Mode Preserves Native Text Selection
             drag=true;tb.CaptureMouse();e.Handled=true;
         };
         tb.PreviewMouseMove+=(_,e)=>
         {
             if(!drag||group.Tag is not ArrowInfo info)return;
             if(e.LeftButton!=MouseButtonState.Pressed){drag=false;tb.ReleaseMouseCapture();return;}
-            // 把滑鼠點投影到箭桿上，換算成 0~1 的沿線位置參數
+            // Project the mouse click onto the arrow shaft and convert it to a position parameter along the line on a scale of 0 to 1.
             var p=e.GetPosition(canvas);
             var dx=info.End.X-info.Start.X;var dy=info.End.Y-info.Start.Y;
             var lenSq=dx*dx+dy*dy;if(lenSq<1)return;
@@ -481,7 +481,7 @@ sealed partial class ScreenCaptureOverlay
         tb.MouseEnter+=(_,_)=>tb.Cursor=tb.IsKeyboardFocusWithin?null:Cursors.SizeAll;
     }
 
-    // 依 ArrowInfo 重排整支箭頭：箭桿（有文字時斷成兩段讓位）、箭頭三角、沿箭頭方向旋轉的文字框
+    // Reorder the entire arrow based on ArrowInfo: the arrow shaft (split into two segments to make room for text, if present), the arrowhead triangle, and the text box rotating in the direction of the arrow
     void LayoutArrow(Canvas group)
     {
         if(group.Tag is not ArrowInfo info)return;
@@ -507,11 +507,11 @@ sealed partial class ScreenCaptureOverlay
         var t=Math.Clamp(info.TextT,0.06,0.94);
         var cx=x1+(x2-x1)*t;var cy=y1+(y2-y1)*t;
         var deg=angle*180/Math.PI;
-        // 文字沿箭頭方向排列；箭頭指向左半邊時翻轉 180° 保證文字仍從左到右可讀
+        // Text is arranged in the direction of the arrow; when the arrow points to the left side, rotate it 180° to ensure the text remains readable from left to right.
         tb.RenderTransformOrigin=new Point(.5,.5);
         tb.RenderTransform=new RotateTransform(deg>90||deg<-90?deg+180:deg);
         Canvas.SetLeft(tb,cx-tw/2);Canvas.SetTop(tb,cy-th/2);
-        // 斷線讓位：前段畫到文字前緣，後段從文字後緣畫到箭桿尾（貼近端點時自動隱藏過短的段）
+        // Line Break and Alignment: Draw the front segment up to the leading edge of the text; draw the rear segment from the trailing edge of the text to the tip of the arrow shaft (segments that are too short are automatically hidden when they approach the endpoint).
         var half=tw/2+6;
         var g1=Math.Clamp(t*dist-half,0,tail);var g2=Math.Clamp(t*dist+half,0,tail);
         line.X1=x1;line.Y1=y1;line.X2=x1+cos*g1;line.Y2=y1+sin*g1;
@@ -713,7 +713,7 @@ sealed partial class ScreenCaptureOverlay
         layer.Add(annResizer);
     }
 
-    // 線條/箭頭的端點編輯器：兩個端點把手可拖拽重新定位起點/終點
+    // Line/Arrow Endpoint Editor: Two endpoint handles can be dragged to reposition the start and end points
     sealed class LineEditAdorner : Adorner
     {
         readonly VisualCollection visuals;

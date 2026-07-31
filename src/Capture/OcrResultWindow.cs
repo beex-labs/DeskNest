@@ -25,10 +25,10 @@ using KeyEventArgs=System.Windows.Input.KeyEventArgs;
 namespace BeeX.DeskNest;
 
 /// <summary>
-/// 截圖 OCR 結果視窗：左側截圖預覽、右側辨識結果；右下角「複製並關閉」，
-/// Shift+C 立即複製並關閉，Esc 直接關閉。
-/// 文字與公式不分模式：先跑文字 OCR，再用數學特徵啟發式自動判別是否為公式，
-/// 是則追加公式辨識輸出 LaTeX，失敗自動回退文字結果。
+/// Screenshot of the OCR results window: screenshot preview on the left, recognition results on the right; "Copy and Close" in the lower-right corner,
+/// Shift+C to copy immediately and close; Esc to close immediately.
+/// Text and formulas are not distinguished by mode: First, OCR is run on the text, and then a heuristic based on mathematical features is used to automatically determine whether it is a formula,
+/// This feature uses an additional formula recognition process to generate LaTeX output; if it fails, it automatically falls back to a text result.
 /// </summary>
 public sealed class OcrResultWindow : Window
 {
@@ -36,7 +36,7 @@ public sealed class OcrResultWindow : Window
     enum PunctMode{Original,HalfWidth,FullWidth}
     enum LangMode{Follow,Simplified,Traditional,English,Japanese}
 
-    // 会话内记住用户选择，新开窗口沿用
+    // Remember user selections within the session; carry them over to new windows
     static LayoutMode layoutMode=LayoutMode.Auto;
     static PunctMode punctMode=PunctMode.Original;
     static LangMode langMode=LangMode.Follow;
@@ -79,14 +79,14 @@ public sealed class OcrResultWindow : Window
         WindowStyle=WindowStyle.None;AllowsTransparency=true;Background=Brushes.Transparent;
         ResizeMode=ResizeMode.CanResizeWithGrip;ShowInTaskbar=true;Topmost=true;
 
-        // 顶部不留内边距，让 65px 标题栏贴齐窗口顶边（与其他组件统一）
+        // Do not leave any padding at the top; align the 65px title bar flush with the top edge of the window (to match other components).
         var border=new Border{CornerRadius=new CornerRadius(14),Background=Surface,BorderBrush=BorderOrange,BorderThickness=new Thickness(1),Padding=new Thickness(16,0,16,16),SnapsToDevicePixels=true};
         var root=new Grid();
         root.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
         root.RowDefinitions.Add(new RowDefinition());
         root.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
 
-        // 标题栏：logo + 标题居左，关闭按钮居右（留足边距避免被圆角裁切）；高度按物理 65px 换算，并在显示/跨屏后随 DPI 刷新
+        // Title Bar: Logo + title aligned to the left, close button aligned to the right (leave sufficient margin to prevent clipping by rounded corners); height is calculated based on a physical value of 65px and is updated according to DPI when the screen is displayed or spans multiple screens.
         var header=new Grid{Margin=new Thickness(0,0,0,12),MinHeight=TitleBarMetrics.Dip(this)};
         Loaded+=(_,_)=>header.MinHeight=TitleBarMetrics.Dip(this);
         DpiChanged+=(_,_)=>header.MinHeight=TitleBarMetrics.Dip(this);
@@ -106,7 +106,7 @@ public sealed class OcrResultWindow : Window
         header.Children.Add(closeBtn);
         root.Children.Add(header);
 
-        // 主体：左图右文
+        // Layout: Image on the left, text on the right
         var body=new Grid();Grid.SetRow(body,1);
         body.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(1,GridUnitType.Star)});
         body.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(14)});
@@ -120,7 +120,7 @@ public sealed class OcrResultWindow : Window
             preview.Source=bitmap;
         }
         catch{}
-        // 图片完整适配面板展示，不用滚动条；右键可复制图片
+        // Images are fully optimized to fit the display without requiring a scroll bar; right-click to copy the image.
         var imagePanel=new Border{Background=PanelBg,CornerRadius=new CornerRadius(10),Padding=new Thickness(8),Child=preview};
         var imageMenu=new WpfContextMenu{Background=new SolidColorBrush(Color.FromArgb(236,13,19,33)),Foreground=Brushes.White,BorderBrush=new SolidColorBrush(Color.FromArgb(160,255,138,0)),BorderThickness=new Thickness(1)};
         var copyImageItem=new WpfMenuItem{Header=L("複製圖片"),Foreground=Brushes.White};
@@ -141,7 +141,7 @@ public sealed class OcrResultWindow : Window
         right.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
         right.RowDefinitions.Add(new RowDefinition());
 
-        // 文字/公式自动判别，无需模式按钮；此行仅在未安装 OCR 元件时显示安装入口
+        // Automatic text/formula detection—no mode button required; this line appears only when the OCR component is not installed, displaying the installation link.
         installBtn=new Button{Content=L("安裝 OCR 辨識"),MinWidth=118,Height=30,Margin=new Thickness(0,0,0,8),HorizontalAlignment=HorizontalAlignment.Left,Background=Accent,Foreground=Brushes.White,BorderThickness=new Thickness(0),Cursor=Cursors.Hand,FontWeight=FontWeights.SemiBold,Visibility=Visibility.Collapsed};
         installBtn.Click+=async (_,_)=>await InstallAsync();
         right.Children.Add(installBtn);
@@ -163,7 +163,7 @@ public sealed class OcrResultWindow : Window
         body.Children.Add(right);
         root.Children.Add(body);
 
-        // 底栏：快捷键提示居左；右下角依次为 排版設置、辨識語言、複製並關閉
+        // Bottom Bar: Shortcut key tips are aligned to the left; in the lower-right corner, from left to right, are Layout Settings, Language Recognition, and Copy and Close.
         var footer=new Grid{Margin=new Thickness(0,12,0,0)};
         Grid.SetRow(footer,2);
         statusText=new TextBlock{Text=L("Shift+C 複製並關閉 · Esc 關閉"),Foreground=new SolidColorBrush(Color.FromArgb(150,255,255,255)),VerticalAlignment=VerticalAlignment.Center,HorizontalAlignment=HorizontalAlignment.Left};
@@ -193,8 +193,8 @@ public sealed class OcrResultWindow : Window
         border.Child=root;
         Content=border;
 
-        // 整窗空白区域均可拖动（自动排除按钮/文本框/滚动条等交互控件）；
-        // 之前只挂在标题栏 Grid 上，无背景的 Grid 仅子元素处响应命中测试，导致只有零星区域能拖
+        // You can drag anywhere within the blank area of the window (excluding interactive controls such as buttons, text boxes, and scroll bars);
+        // Previously, it was only attached to the "Grid" in the title bar. Since the Grid had no background and only responded to click tests at its child elements, only scattered areas could be dragged.
         PreviewMouseLeftButtonDown+=(_,e)=>
         {
             if(e.ClickCount!=1||IsInteractive(e.OriginalSource as DependencyObject))return;
@@ -224,7 +224,7 @@ public sealed class OcrResultWindow : Window
         return false;
     }
 
-    /// <summary>按钮内容：文字 + 内置 tabler 图标（不依赖外部图标库）。</summary>
+    /// <summary>Button content: Text + built-in Tabler icon (does not rely on external icon libraries).</summary>
     static StackPanel BtnContent(string text,string icon,double iconSize,bool iconFirst=false)
     {
         var panel=new StackPanel{Orientation=Orientation.Horizontal,IsHitTestVisible=false};
@@ -235,7 +235,7 @@ public sealed class OcrResultWindow : Window
         return panel;
     }
 
-    /// <summary>手动按公式重新辨識：自动判别漏掉公式时的兜底入口。</summary>
+    /// <summary>Manually re-identify using the formula: A fallback option for when the system fails to automatically detect a missing formula.</summary>
     async Task ForceFormulaAsync()
     {
         if(busy)return;
@@ -274,7 +274,7 @@ public sealed class OcrResultWindow : Window
         }
     }
 
-    /// <summary>手动按表格辨識：侧车返回 HTML 表格，用 WebView2 渲染带边框的表格，并启用 Excel 导出。</summary>
+    /// <summary>Manual table recognition: The side menu returns an HTML table, which is rendered as a table with borders using WebView2, and Excel export is enabled.</summary>
     async Task ForceTableAsync()
     {
         if(busy)return;
@@ -317,7 +317,7 @@ public sealed class OcrResultWindow : Window
         }
     }
 
-    /// <summary>解析带 colspan/rowspan 的 HTML 表格：展开成完整网格 + 合并区域列表（供 Excel mergeCells）。</summary>
+    /// <summary>Parsing HTML tables with colspan/rowspan: Expanding to a full grid + list of merged cells (for Excel's mergeCells function). </summary>
     static (List<string[]> Grid,List<(int R1,int C1,int R2,int C2)> Merges) ParseHtmlTable(string html)
     {
         var rowsRaw=new List<List<(string Text,int Cs,int Rs)>>();
@@ -404,7 +404,7 @@ public sealed class OcrResultWindow : Window
 
     void OnPreviewKey(object sender,KeyEventArgs e)
     {
-        // 中文输入法开启时按键被吞成 ImeProcessed，还原真实键值保证 Shift+C 可用
+        // When the Chinese input method is enabled, keystrokes are interpreted as "ImeProcessed"; restoring the actual key values ensures that Shift+C works.
         var key=e.Key==Key.ImeProcessed?e.ImeProcessedKey:e.Key;
         if(key==Key.Escape){e.Handled=true;Close();return;}
         if(key==Key.C&&Keyboard.Modifiers==ModifierKeys.Shift){e.Handled=true;CopyAndClose();}
@@ -412,7 +412,7 @@ public sealed class OcrResultWindow : Window
 
     static bool updateChecked;
 
-    /// <summary>每次运行只检测一次更新；有新包时把安装按钮作为“更新”入口显示（不弹窗不打断）。</summary>
+    /// <summary>Checks for updates only once per session; when new packages are available, the "Install" button is displayed as an "Update" entry (without a pop-up window or interruption).</summary>
     async Task ShowUpdateHintAsync()
     {
         if(updateChecked)return;
@@ -437,7 +437,7 @@ public sealed class OcrResultWindow : Window
 
     bool installHooked;
 
-    /// <summary>安裝/更新 OCR 元件：交給後台安裝器，窗口只訂閱進度展示——隨時可關窗，下載繼續，完成後全局非模態通知。</summary>
+    /// <summary>Install/Update OCR Components: Handled by the background installer; the window only displays progress—you can close the window at any time, and the download will continue; a global, non-modal notification will appear upon completion.</summary>
     async Task InstallAsync()
     {
         if(busy)return;
@@ -472,7 +472,7 @@ public sealed class OcrResultWindow : Window
         await Task.CompletedTask;
     }
 
-    /// <summary>统一识别流程：文字 OCR → 数学特征判别 → 需要时追加公式识别，失败回退文字。</summary>
+    /// <summary>Standardized Recognition Process: Text OCR → Mathematical Feature Analysis → Additional formula recognition if needed; if recognition fails, fall back to text. </summary>
     async Task RecognizeAutoAsync()
     {
         busy=true;
@@ -513,7 +513,7 @@ public sealed class OcrResultWindow : Window
                 }
                 catch
                 {
-                    // 公式侧车失败不打断流程，回退文字结果
+                    // If a formula side-car fails, the process is not interrupted; the text result is rolled back.
                 }
             }
 
@@ -535,15 +535,15 @@ public sealed class OcrResultWindow : Window
     }
 
     /// <summary>
-    /// 数学公式启发式：截图更像公式而非普通文字时返回 true。
-    /// 依据：文字 OCR 为空（纯符号图形识别不出）、数学符号密度、上下标/分式/等式等 LaTeX 常见形态；
-    /// 含 CJK 长句或多行普通文本时视为文字。
+    /// Math Formula Heuristic: Returns true when the screenshot looks more like a formula than plain text.
+    /// Based on: Text OCR is empty (pure symbol graphics cannot be recognized), density of mathematical symbols, and common LaTeX elements such as superscripts, subscripts, fractions, and equations;
+    /// Text containing long sentences or multiple lines of plain text in CJK characters is treated as text.
     /// </summary>
     internal static bool LooksLikeFormula(string text)
     {
         var trimmed=text.Trim();
-        if(trimmed.Length==0)return true;            // 文字 OCR 拿不到内容，很可能是纯公式/符号
-        if(trimmed.Length>160)return false;           // 长文本必是普通文字
+        if(trimmed.Length==0)return true;            // If text OCR fails to extract the content, it is most likely because the text consists solely of formulas or symbols.
+        if(trimmed.Length>160)return false;           // Long text must consist of plain text.
 
         var lines=trimmed.Split('\n',StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries);
         if(lines.Length>4)return false;
@@ -557,17 +557,17 @@ public sealed class OcrResultWindow : Window
             else if(char.IsDigit(c))digits++;
         }
 
-        // 中文占比高/代码特征 → 普通文字（优先排除，避免后面规则误判）
+        // High proportion of Chinese text / code characteristics → Plain text (prioritize exclusion to avoid false positives in subsequent rules)
         if(cjk>2)return false;
         if(Regex.IsMatch(trimmed,@"\b(var|public|class|void|return|await|function|def|if|for|while)\b"))return false;
         if(trimmed.Contains(';')||trimmed.Contains("=>")||trimmed.Contains("://"))return false;
 
         if(mathSymbols>=2)return true;
-        // 单个数学符号常见于公式被文字 OCR 误读后的残留（如 ∃→"3"、ℤ→"Z"），
-        // 搭配等号且文本很短时仍判为公式
+        // Single mathematical symbols are commonly found as remnants of formulas that have been misread by OCR (e.g., ∃→"3," ℤ→"Z"),
+        // It is still recognized as a formula even when it includes an equals sign and the text is very short
         if(mathSymbols>=1&&trimmed.Contains('=')&&trimmed.Length<=80&&lines.Length<=2)return true;
 
-        // 等式/分式/上下标形态：如 y=ax^2+bx+c、f(x)=1/2、a_i=b_j
+        // Equations/Fractions/Superscripts and Subscripts: e.g., y = ax² + bx + c, f(x) = 1/2, a_i = b_j
         var structural=Regex.Matches(trimmed,@"[=^_/(){}\[\]|]").Count;
         if(structural>=3&&digits+letters>0&&letters<=trimmed.Length*0.6)
         {
@@ -577,13 +577,13 @@ public sealed class OcrResultWindow : Window
         return false;
     }
 
-    /// <summary>把排版/标点/语言设置应用到原始识别文本后刷新显示；LaTeX 公式结果不做内容变换，
-    /// 仅按 LaTeX 自身的换行结构美化显示（空白对 LaTeX 语义无影响，复制出去仍是合法公式）。</summary>
+    /// <summary>Apply formatting, punctuation, and language settings to the originally recognized text, then refresh the display; LaTeX equations are not converted,
+    /// Formatted for readability based solely on LaTeX's own line-breaking structure (spaces have no effect on LaTeX semantics; the formula remains valid when copied). </summary>
     void RenderResult()
     {
         if(!hasResult)return;
         if(isFormulaResult){resultBox.Text=FormatLatexForDisplay(rawText);return;}
-        if(isTableResult){_ =RenderTableAsync();return;} // 表格用 WebView2 渲染 HTML，复制时仍用 Markdown
+        if(isTableResult){_ =RenderTableAsync();return;} // The table uses WebView2 to render HTML, but Markdown is still used when copying.
 
         var text=rawText;
         text=layoutMode switch
@@ -608,7 +608,7 @@ public sealed class OcrResultWindow : Window
         resultBox.Text=text;
     }
 
-    /// <summary>切换表格 WebView2 与文字 TextBox 的可见性。</summary>
+    /// <summary>Toggle the visibility of the WebView2 and TextBox.</summary>
     void ShowTableWebView(bool show)
     {
         if(show)
@@ -623,7 +623,7 @@ public sealed class OcrResultWindow : Window
         }
     }
 
-    /// <summary>初始化表格 WebView2（懒加载，只执行一次）。</summary>
+    /// <summary>Initialize the WebView2 table (lazy loading; executed only once).</summary>
     async Task InitTableWebViewAsync()
     {
         if(tableWebInit!=null){await tableWebInit;return;}
@@ -653,7 +653,7 @@ public sealed class OcrResultWindow : Window
         }
     }
 
-    /// <summary>在 WebView2 中渲染表格 HTML（带深色主题 CSS 边框）。</summary>
+    /// <summary>Rendering HTML tables in WebView2 (with dark-theme CSS borders).</summary>
     async Task RenderTableAsync()
     {
         try
@@ -663,13 +663,13 @@ public sealed class OcrResultWindow : Window
         }
         catch
         {
-            // WebView2 初始化失败时回退到 Markdown 文本显示
+            // Fall back to Markdown text display when WebView2 initialization fails
             ShowTableWebView(false);
             resultBox.Text=rawText;
         }
     }
 
-    /// <summary>将表格 HTML 包裹为带深色主题 CSS 样式的完整 HTML 文档。</summary>
+    /// <summary>Wraps the table HTML in a complete HTML document with CSS styles for a dark theme.</summary>
     static string WrapTableHtml(string tableHtml)
     {
         const string Head="<!DOCTYPE html><html><head><meta charset=\"utf-8\"><style>"
@@ -684,8 +684,8 @@ public sealed class OcrResultWindow : Window
     }
 
     /// <summary>
-    /// LaTeX 显示美化：`\\` 是 LaTeX 的换行符，在其后插入真换行；
-    /// \begin/\end 环境边界各自成行。只加空白不改内容，LaTeX 语义不变。
+    /// LaTeX Formatting: `\\` is LaTeX's line break character; a true line break is inserted after it;
+    /// The start and end of the \begin/\end environment are each on a separate line. Adding only whitespace without changing the content does not alter the LaTeX semantics.
     /// </summary>
     internal static string FormatLatexForDisplay(string latex)
     {
@@ -702,7 +702,7 @@ public sealed class OcrResultWindow : Window
         {
             "zh-CN"=>LangMode.Simplified,
             "zh-TW"=>LangMode.Traditional,
-            _=>LangMode.English // 英/日等界面语言不做简繁转换
+            _=>LangMode.English // Interface languages such as English and Japanese are not converted between simplified and traditional characters.
         };
     }
 
@@ -729,7 +729,7 @@ public sealed class OcrResultWindow : Window
         menu.Items.Add(CheckItem("移除換行符",layoutMode==LayoutMode.RemoveLineBreaks,()=>layoutMode=LayoutMode.RemoveLineBreaks));
         menu.Items.Add(CheckItem("多行",layoutMode==LayoutMode.MultiLine,()=>layoutMode=LayoutMode.MultiLine));
         menu.Items.Add(CheckItem("去掉空格",layoutMode==LayoutMode.RemoveSpaces,()=>layoutMode=LayoutMode.RemoveSpaces));
-        // WPF 原生子菜单弹出面板是系统白底，白字不可见；改用手动二级上拉（同款深色主题）
+        // The native WPF submenu pop-up panel has a white background, making the white text invisible; switched to a manual two-level drop-down menu (same dark theme).
         var punct=new WpfMenuItem{Header=L("標點")+(punctMode!=PunctMode.Original?" ✓":"")+"  ▸",Foreground=Brushes.White,StaysOpenOnClick=false};
         punct.Click+=(_,_)=>
         {
@@ -741,7 +741,7 @@ public sealed class OcrResultWindow : Window
         return menu;
     }
 
-    /// <summary>标点二级菜单：半角/全角互斥，再次点击已勾选项 = 取消勾选（恢复原标点）。</summary>
+    /// <summary>Punctuation submenu: Half-width/Full-width options are mutually exclusive; clicking a checked option again = uncheck it (restore original punctuation).</summary>
     WpfContextMenu BuildPunctMenu()
     {
         var menu=NewMenu();
@@ -763,7 +763,7 @@ public sealed class OcrResultWindow : Window
 
     static string[] SplitLines(string text)=>text.Replace("\r\n","\n").Split('\n',StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries);
 
-    /// <summary>合并换行：中文之间直接相连，拉丁单词之间补空格。</summary>
+    /// <summary>Merge line breaks: Chinese characters are joined directly, while spaces are inserted between Latin words.</summary>
     static string JoinLines(string text)
     {
         var builder=new StringBuilder();
@@ -797,19 +797,19 @@ public sealed class OcrResultWindow : Window
 
     static string ToFullWidthPunctuation(string text)
     {
-        // 先处理需要上下文的：数字中间的 . 和 , 保留（小数点/千分位）
+        // First, handle the elements that require context: retain the . and , in the middle of numbers (decimal point/thousands separator).
         text=Regex.Replace(text,@"(?<!\d)\.(?!\d)","。");
         text=Regex.Replace(text,@"(?<!\d),(?!\d)","，");
         var builder=new StringBuilder(text);
         foreach(var(full,half)in PunctPairs)
         {
-            if(half is '.' or ',' or '"' or '\'' or ' ')continue; // 引号方向性/空格不反向替换
+            if(half is '.' or ',' or '"' or '\'' or ' ')continue; // Quote Direction/Spaces Not Reversed
             builder.Replace(half,full);
         }
         return builder.ToString();
     }
 
-    /// <summary>简繁转换：Windows 原生 LCMapStringEx，零外部依赖（字级映射，足够 OCR 场景使用）。</summary>
+    /// <summary>Simplified-Traditional Conversion: Windows native LCMapStringEx, zero external dependencies (character-level mapping, sufficient for OCR scenarios).</summary>
     static class ChineseVariantConverter
     {
         const uint LcmapSimplifiedChinese=0x02000000;

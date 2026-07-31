@@ -4,7 +4,7 @@ using BeeX.DeskNest;
 
 namespace BeeX.DeskNest.LyricsProviders;
 
-/// <summary>酷狗音乐歌词搜索：覆盖华语老歌、网络歌曲和翻唱</summary>
+/// <summary>Kugou lyrics search: covers older Chinese songs, web songs and covers.</summary>
 internal static class KugouLyricsProvider
 {
     public static async Task<(string Provider, string Lrc)?> TryAsync(string title, string artist, CancellationToken token)
@@ -13,7 +13,7 @@ internal static class KugouLyricsProvider
         {
             foreach (var query in LyricsMatching.SearchQueries(title, artist))
             {
-                // Step 1: 搜索
+                // Step 1: search
                 var searchUrl=$"http://mobilecdn.kugou.com/api/v3/search/song?format=json&keyword={Uri.EscapeDataString(query)}&page=1&pagesize=5";
                 using var searchResp=await MusicLyricsService.Http.GetAsync(searchUrl,token);
                 if(!searchResp.IsSuccessStatusCode)continue;
@@ -28,7 +28,7 @@ internal static class KugouLyricsProvider
                     if(score>bestScore){bestScore=score;bestHash=song.TryGetProperty("hash",out var h)?h.GetString():null;}
                 }
                 if(string.IsNullOrWhiteSpace(bestHash)||bestScore<8)continue;
-                // Step 2: 通过 hash 获取歌词
+                // Step 2: fetch lyrics by hash
                 var lyricUrl=$"https://krcs.kugou.com/search?ver=1&man=yes&client=mobi&hash={bestHash}";
                 using var lyricResp=await MusicLyricsService.Http.GetAsync(lyricUrl,token);
                 if(!lyricResp.IsSuccessStatusCode)continue;
@@ -38,7 +38,7 @@ internal static class KugouLyricsProvider
                 var lrcId=first.TryGetProperty("id",out var lid)?lid.GetString():"";
                 var accessKey=first.TryGetProperty("accesskey",out var ak)?ak.GetString():"";
                 if(string.IsNullOrWhiteSpace(lrcId)||string.IsNullOrWhiteSpace(accessKey))continue;
-                // Step 3: 下载歌词
+                // Step 3: download lyrics
                 var dlUrl=$"https://lyrics.kugou.com/download?ver=1&client=pc&id={lrcId}&accesskey={accessKey}&fmt=lrc&charset=utf8";
                 using var dlResp=await MusicLyricsService.Http.GetAsync(dlUrl,token);
                 if(!dlResp.IsSuccessStatusCode)continue;

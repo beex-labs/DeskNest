@@ -9,9 +9,9 @@ using Sdcb.PaddleOCR;
 namespace BeeX.OCR;
 
 /// <summary>
-/// 表格识别 v3：优先用 OpenCV 框线检测还原真实网格（列/行边界=表格线位置，
-/// 两格之间缺失分隔线=合并单元格，确定性远高于文本框启发式）；
-/// 无框线表格回退 v2 文本框聚类启发式。输出带 colspan/rowspan 的 HTML。
+/// Table recognition v3: prefers OpenCV line detection to reconstruct the real grid (column/row boundaries = table line positions,
+/// a missing separator between two cells = a merged cell; far more deterministic than text-box heuristics);
+/// tables without lines fall back to the v2 text-box clustering heuristic. Outputs HTML with colspan/rowspan.
 /// </summary>
 internal sealed class TableRecognitionService : IDisposable
 {
@@ -37,7 +37,7 @@ internal sealed class TableRecognitionService : IDisposable
 
     public string RecognizeHtml(Bitmap bitmap)
     {
-        // 降采样：最大边 > 1600px 时按比例缩小，加速 OCR + OpenCV
+        // Downsampling: when the longest side > 1600px, scale down proportionally to speed up OCR + OpenCV
         double scale = 1.0;
         int maxSide = Math.Max(bitmap.Width, bitmap.Height);
         Bitmap workBitmap;
@@ -57,7 +57,7 @@ internal sealed class TableRecognitionService : IDisposable
         {
             using Mat mat = BitmapToMatFast(workBitmap);
 
-            // 并行执行 OCR 推理与 OpenCV 线检测，各持一份 Mat 副本以保证线程安全
+            // Run OCR inference and OpenCV line detection in parallel, each holding its own Mat copy for thread safety
             var ocrTask = Task.Run(() =>
             {
                 using var clone = mat.Clone();
@@ -72,7 +72,7 @@ internal sealed class TableRecognitionService : IDisposable
             PaddleOcrResult ocrResult = ocrTask.GetAwaiter().GetResult();
             GridDetectionResult? grid = gridTask.GetAwaiter().GetResult();
 
-            // 坐标还原到原始尺寸
+            // Restore coordinates to the original size
             var boxes = ocrResult.Regions
                 .Where(r => !string.IsNullOrWhiteSpace(r.Text))
                 .Select(r =>
@@ -91,7 +91,7 @@ internal sealed class TableRecognitionService : IDisposable
 
             if (grid != null)
             {
-                // 线检测坐标还原
+                // Restore line-detection coordinates
                 var yBounds = scale != 1.0 ? grid.YBounds.Select(y => (int)(y / scale)).ToList() : grid.YBounds;
                 var xBounds = scale != 1.0 ? grid.XBounds.Select(x => (int)(x / scale)).ToList() : grid.XBounds;
                 string? html = BuildGridHtml(yBounds, xBounds, grid.MergeRight, grid.MergeDown, grid.Cells, boxes);
@@ -106,9 +106,9 @@ internal sealed class TableRecognitionService : IDisposable
         }
     }
 
-    // ================= 框线网格路径 =================
+    // ================= Line-based grid path =================
 
-    /// <summary>OpenCV 线检测 + 合并分析（不依赖 OCR 结果，可与 OCR 并行）。</summary>
+    /// <summary>OpenCV line detection + merge analysis (independent of OCR results, can run in parallel with OCR).</summary>
     private static GridDetectionResult? DetectGridLines(Mat mat)
     {
         try
@@ -171,7 +171,7 @@ internal sealed class TableRecognitionService : IDisposable
         }
     }
 
-    /// <summary>用 OCR 文本框填充网格单元格，生成 HTML。</summary>
+    /// <summary>Fills grid cells with OCR text boxes and generates HTML.</summary>
     private static string? BuildGridHtml(List<int> yBounds, List<int> xBounds,
         bool[,] mergeRight, bool[,] mergeDown,
         List<(int R, int C, int RS, int CS)> cells, List<Box> boxes)
@@ -225,7 +225,7 @@ internal sealed class TableRecognitionService : IDisposable
         return html.Append("</table>").ToString();
     }
 
-    /// <summary>把线掩码沿一个方向投影，聚类出边界坐标。</summary>
+    /// <summary>Projects the line mask along one direction and clusters out boundary coordinates.</summary>
     private static List<int> ProjectBounds(Mat lines, bool horizontal, double minCoverage)
     {
         int n = horizontal ? lines.Rows : lines.Cols;
@@ -250,7 +250,7 @@ internal sealed class TableRecognitionService : IDisposable
                 runStart = -1;
             }
         }
-        // 合并间距 <6px 的重复线
+        // Merge duplicate lines closer than 6px
         var merged = new List<int>();
         foreach (var b in bounds)
             if (merged.Count == 0 || b - merged[^1] > 6) merged.Add(b);
@@ -258,7 +258,7 @@ internal sealed class TableRecognitionService : IDisposable
         return merged;
     }
 
-    /// <summary>检查两格之间的分隔线段是否真实存在（覆盖率 > 35%）。</summary>
+    /// <summary>Checks whether the separator segment between two cells actually exists (coverage > 35%).</summary>
     private static bool SegmentExists(Mat lines, int at, int from, int to, bool vertical)
     {
         int pad = Math.Max(2, (to - from) / 10);
@@ -285,7 +285,7 @@ internal sealed class TableRecognitionService : IDisposable
         return -1;
     }
 
-    /// <summary>LockBits 直接复制像素数据，避免 PNG 编解码开销。</summary>
+    /// <summary>Copies pixel data directly via LockBits, avoiding PNG encode/decode overhead.</summary>
     private static Mat BitmapToMatFast(Bitmap bitmap)
     {
         var argb = bitmap.PixelFormat == PixelFormat.Format32bppArgb
@@ -317,7 +317,7 @@ internal sealed class TableRecognitionService : IDisposable
         return converted;
     }
 
-    // ================= v2 启发式回退（无框线表格） =================
+    // ================= v2 heuristic fallback (tables without lines) =================
 
     private static string HeuristicHtml(List<Box> boxes)
     {

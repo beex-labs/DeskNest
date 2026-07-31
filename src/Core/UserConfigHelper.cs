@@ -5,42 +5,42 @@ using System.Text.Json.Serialization;
 namespace BeeX.DeskNest;
 
 /// <summary>
-/// 统一读写 config.json 中的用户配置项（DeepL Key、翻译目标语言等），
-/// 消除散落在 SettingsWindow / TranslateResultWindow / TranslationService / ScreenCaptureOverlay / CleanerWindow 中的重复实现。
+/// Unified read/write for user config entries in config.json (DeepL key, translation target language, etc.),
+/// eliminating duplicated implementations scattered across SettingsWindow / TranslateResultWindow / TranslationService / ScreenCaptureOverlay / CleanerWindow.
 /// </summary>
 internal static class UserConfigHelper
 {
     // ---- DeepL API Key ----
 
-    /// <summary>读取用户设置的 DeepL API Key，不存在或为空返回空字符串。</summary>
+    /// <summary>Reads the user's DeepL API key; returns an empty string if missing or empty.</summary>
     public static string ReadDeepLApiKey()
     {
         return ReadConfigValue("deepl_api_key") ?? "";
     }
 
-    /// <summary>写入用户设置的 DeepL API Key。</summary>
+    /// <summary>Writes the user's DeepL API key.</summary>
     public static void WriteDeepLApiKey(string key)
     {
         WriteConfigValue("deepl_api_key", key);
     }
 
-    // ---- 翻译目标语言 ----
+    // ---- Translation target language ----
 
-    /// <summary>读取翻译目标语言设置（auto/zh/en/ja/ko），默认 auto。</summary>
+    /// <summary>Reads the translation target language setting (auto/zh/en/ja/ko); defaults to auto.</summary>
     public static string ReadTranslateTarget()
     {
         return (ReadConfigValue("translate_target") ?? "auto").Trim().ToLowerInvariant();
     }
 
-    /// <summary>写入翻译目标语言设置。</summary>
+    /// <summary>Writes the translation target language setting.</summary>
     public static void WriteTranslateTarget(string code)
     {
         WriteConfigValue("translate_target", code);
     }
 
-    // ---- 底层读写原语 ----
+    // ---- Low-level read/write primitives ----
 
-    /// <summary>从 config.json 读取指定 key 的字符串值，不存在返回 null。</summary>
+    /// <summary>Reads the string value for the given key from config.json; returns null if missing.</summary>
     private static string? ReadConfigValue(string key)
     {
         try
@@ -54,7 +54,7 @@ internal static class UserConfigHelper
         catch { return null; }
     }
 
-    /// <summary>向 config.json 写入指定 key-value 并镜像到旧路径。</summary>
+    /// <summary>Writes the given key-value to config.json and mirrors it to the legacy path.</summary>
     private static void WriteConfigValue(string key, string value)
     {
         try

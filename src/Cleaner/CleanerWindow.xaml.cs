@@ -31,13 +31,13 @@ public partial class CleanerWindow : Window, IUiService
         InputBindings.Add(new KeyBinding(_vm.RefreshCommand, new KeyGesture(Key.F5)));
     }
 
-    // ---------------- 事件处理 ----------------
+    // ---------------- Event Handling ----------------
     private void OnGridDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        // 双击复选框时不触发卸载
+        // Double-clicking the checkbox does not trigger uninstallation
         if (BeeX.DeskNest.VisualTreeUtils.FindParent<CheckBox>(e.OriginalSource as DependencyObject) is not null)
             return;
-        // 仅在双击到数据行时触发
+        // Triggered only when a data row is double-clicked
         if (BeeX.DeskNest.VisualTreeUtils.FindParent<DataGridRow>(e.OriginalSource as DependencyObject) is null)
             return;
 
@@ -48,11 +48,11 @@ public partial class CleanerWindow : Window, IUiService
     private void OnHeaderCheckClick(object sender, RoutedEventArgs e)
     {
         if (sender is not CheckBox cb) return;
-        // 勾选作用于可见列表；取消勾选清空全量，避免被搜索过滤隐藏的勾选项残留
+        // Check the box to apply the selection to the visible list; uncheck the box to clear the entire list and prevent residual checkmarks from items hidden by search filters.
         _vm.SetAllChecked(cb.IsChecked == true);
     }
 
-    // 右键先选中该行：确保“未勾选任何项”时，强制删除/清理残留能作用于右键的这一行
+    // Right-click to select that row first: This ensures that when “No items selected” is checked, the “Force Delete/Clean Up Residual Data” option will apply to the row you right-clicked on.
     private void OnGridRightClick(object sender, MouseButtonEventArgs e)
     {
         var row = BeeX.DeskNest.VisualTreeUtils.FindParent<DataGridRow>(e.OriginalSource as DependencyObject);
@@ -60,8 +60,8 @@ public partial class CleanerWindow : Window, IUiService
             row.IsSelected = true;
     }
 
-    // 工具箱下拉：本进程为托盘应用，层级菜单的 MenuItem 弹层在全局样式下不显示，
-    // 改用 ContextMenu（弹层可正常显示）承载工具箱项，点击按钮时在其下方打开。
+    // Toolbox drop-down: This process is a system tray application; the MenuItem pop-up in the hierarchical menu does not appear under the global style,
+    // Switch to using ContextMenu (the pop-up layer displays correctly) to host the toolbox items; when the button is clicked, the menu opens below it.
     private void OnToolboxClick(object sender, RoutedEventArgs e)
     {
         if (sender is not System.Windows.Controls.Button btn || btn.ContextMenu is null) return;
@@ -70,7 +70,7 @@ public partial class CleanerWindow : Window, IUiService
         btn.ContextMenu.IsOpen = true;
     }
 
-    // ---------------- IUiService 实现 ----------------
+    // ---------------- IUiService Implementation ----------------
     public bool Confirm(string message, string title = "确认")
         => MessageBox.Show(this, message, title, MessageBoxButton.YesNo, MessageBoxImage.Question)
            == MessageBoxResult.Yes;
@@ -134,7 +134,7 @@ public partial class CleanerWindow : Window, IUiService
         win.ShowDialog();
     }
 
-    // ---------------- DeepL Key 设置 ----------------
+    // ---------------- DeepL Key Settings ----------------
     private void LoadDeepLKey()
     {
         CleanerDeepLKeyBox.Text = BeeX.DeskNest.UserConfigHelper.ReadDeepLApiKey();
@@ -153,7 +153,7 @@ public partial class CleanerWindow : Window, IUiService
         var key = CleanerDeepLKeyBox.Text.Trim();
         BeeX.DeskNest.UserConfigHelper.WriteDeepLApiKey(key);
 
-        // 清除翻译服务的 Key 缓存，使新 Key 立即生效
+        // Clear the translation service's key cache so that new keys take effect immediately
         BeeX.DeskNest.TranslateResultWindow.ClearDeepLKeyCache();
     }
 }

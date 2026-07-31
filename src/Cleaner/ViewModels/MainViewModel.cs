@@ -46,7 +46,7 @@ public sealed class MainViewModel : ObservableObject
         CleanupHistoryCommand = new RelayCommand(_ => _ui.ShowCleanupHistory());
     }
 
-    // ------------- 集合与状态 -------------
+    // ------------- Sets and States -------------
     public ObservableCollection<InstalledProgram> Programs { get; } = new();
 
     private InstalledProgram? _selectedProgram;
@@ -93,12 +93,12 @@ public sealed class MainViewModel : ObservableObject
 
     public int CheckedCount => _all.Count(p => p.IsSelected);
 
-    /// <summary>是否存在可操作对象（勾选项优先，否则看当前高亮行）。</summary>
+    /// <summary>Checks whether an object exists that can be operated on (prioritizes checked items; otherwise, checks the currently highlighted line).</summary>
     public bool HasActionTargets => CheckedCount > 0 || SelectedProgram is not null;
 
     /// <summary>
-    /// 右键/操作的目标集：只要有勾选项就作用于“全部勾选项”（批量），
-    /// 否则回退到当前高亮的单个程序。
+    /// Right-click / Target set for actions: If any options are checked, the action applies to “all checked options” (batch),
+    /// Otherwise, return to the currently highlighted individual program.
     /// </summary>
     private List<InstalledProgram> GetActionTargets()
     {
@@ -120,7 +120,7 @@ public sealed class MainViewModel : ObservableObject
 
     public string SelectedCountText => CheckedCount > 0 ? $"已勾选 {CheckedCount} 个" : string.Empty;
 
-    // ------------- 命令 -------------
+    // ------------- Commands -------------
     public ICommand RefreshCommand { get; }
     public ICommand UninstallCommand { get; }
     public ICommand ForceRemoveCommand { get; }
@@ -139,14 +139,14 @@ public sealed class MainViewModel : ObservableObject
     public ICommand BackupRestoreCommand { get; }
     public ICommand CleanupHistoryCommand { get; }
 
-    // ------------- 加载 -------------
+    // ------------- Loading -------------
     private bool _refreshing;
     private bool _refreshPending;
 
     public async Task RefreshAsync()
     {
-        // 防止 ShowUwp 开关等途径与命令触发的刷新交错：交错会覆盖 _all 并泄漏事件订阅。
-        // 被拦下的请求记“待重扫”而非静默丢弃，否则开关状态与列表内容会漂移。
+        // Prevent refresh conflicts caused by the ShowUwp toggle and other methods or commands: Such conflicts will overwrite _all and cause event subscriptions to leak.
+        // Intercepted requests should be marked as "Pending Rescan" rather than silently discarded; otherwise, the switch status and list contents will drift.
         if (_refreshing) { _refreshPending = true; return; }
         _refreshing = true;
         IsBusy = true;
@@ -176,18 +176,18 @@ public sealed class MainViewModel : ObservableObject
             AttachSelectionEvents();
             eventsDetached = false;
             ApplyFilter();
-            // UWP 枚举失败不能静默呈现为“扫描完成”：否则用户会误判 UWP 应用已卸载
+            // A failed UWP enumeration should not be silently displayed as "Scan Complete"; otherwise, users may mistakenly believe that the UWP app has been uninstalled.
             StatusText = uwpError is null
                 ? $"扫描完成，找到 {_all.Count} 个程序"
                 : $"扫描完成，找到 {_all.Count} 个程序（⚠ UWP 应用枚举失败，列表可能不含 UWP 项：{uwpError}）";
 
-            // 后台渐进实测缺失大小（注册表未提供 EstimatedSize 的程序）
+            // Progressive Testing of Missing Size in the Background (Programs Where the Registry Does Not Provide "EstimatedSize")
             _ = ComputeMissingSizesAsync(_all);
         }
         catch (Exception ex)
         {
-            // 扫描失败时 _all 仍是旧列表且继续显示：必须恢复事件订阅，
-            // 否则勾选计数与批量命令可用性从此静默失效
+            // When the scan fails, _all remains the old list and continues to be displayed: You must restore the event subscription,
+            // Otherwise, the availability of the "Count" and "Batch" commands will be silently disabled from this point forward.
             if (eventsDetached) AttachSelectionEvents();
             _ui.ShowError($"扫描失败: {ex.Message}");
         }
@@ -197,7 +197,7 @@ public sealed class MainViewModel : ObservableObject
             _refreshing = false;
         }
 
-        // 刷新期间又有新请求（如切换 ShowUwp）：补一次重扫，使列表与最新口径一致
+        // If a new request is made during the refresh (such as switching to ShowUwp): Perform a full rescan to ensure the list matches the latest data.
         if (_refreshPending)
         {
             _refreshPending = false;
@@ -224,7 +224,7 @@ public sealed class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(AllCheckedState));
     }
 
-    // ------------- 大小/日期实测（需求5，含 UWP）-------------
+    // ------------- Actual Size/Date Measurements (Requirement 5, including UWP)-------------
     private async Task ComputeMissingSizesAsync(List<InstalledProgram> snapshot)
     {
         var targets = new List<(InstalledProgram prog, string folder, bool needSize, bool needDate)>();
@@ -249,7 +249,7 @@ public sealed class MainViewModel : ObservableObject
 
                 void Apply()
                 {
-                    // 先置实测标记再赋值大小：SizeBytes setter 会刷新 SizeDisplay，顺序颠倒会漏掉“（实测）”后缀
+                    // Set the "Measured" label first, then assign the size: The `SizeBytes` setter updates `SizeDisplay`; reversing the order will omit the "(Measured)" suffix.
                     if (needSize && size > 0) { prog.SizeMeasured = true; prog.SizeBytes = size; }
                     if (needDate && date is not null) prog.InstallDate = date;
                 }
@@ -272,7 +272,7 @@ public sealed class MainViewModel : ObservableObject
         catch { return null; }
     }
 
-    /// <summary>推断可测量的安装目录：优先 InstallLocation，其次 DisplayIcon 所在目录。</summary>
+    /// <summary>Determines the installation directory based on available information: first, the `InstallLocation`; second, the directory containing the `DisplayIcon`.</summary>
     private static string? GuessInstallFolder(InstalledProgram p)
     {
         if (!string.IsNullOrWhiteSpace(p.InstallLocation) && Directory.Exists(p.InstallLocation))
@@ -289,7 +289,7 @@ public sealed class MainViewModel : ObservableObject
                     && !IsUnderWindows(dir))
                     return dir;
             }
-            catch { /* 忽略无效路径 */ }
+            catch { /* Ignore invalid paths */ }
         }
         return null;
     }
@@ -306,7 +306,7 @@ public sealed class MainViewModel : ObservableObject
         catch { return false; }
     }
 
-    // ------------- 单个卸载 -------------
+    // ------------- Uninstall a Single Item -------------
     private async Task UninstallSelectedAsync()
     {
         var p = SelectedProgram;
@@ -350,7 +350,7 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    // ------------- 强制删除（扫描全部残留 → 用户确认后才执行一切删除/卸载，支持多选）-------------
+    // ------------- Force Deletion (Scan all residual files → All deletion/uninstallation actions are performed only after user confirmation; supports multiple selections)-------------
     private async Task ForceRemoveSelectedAsync()
     {
         var targets = GetActionTargets();
@@ -362,8 +362,8 @@ public sealed class MainViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            // 1) 先扫描全部残留（无任何副作用；UWP 卸载延后到用户确认之后，
-            //    避免确认框弹出前就发生不可撤销的卸载）
+            // 1) First, scan for all residual files (no side effects; UWP uninstallation is postponed until the user confirms,
+            //    (To prevent an irreversible uninstallation from occurring before the confirmation dialog box appears)
             BusyText = "正在扫描全部文件与注册表残留…";
             var items = await Task.Run(() =>
             {
@@ -377,12 +377,12 @@ public sealed class MainViewModel : ObservableObject
             });
             IsBusy = false;
 
-            // 只删除默认勾选（高置信）项：低置信/需确认项遵守扫描器 CanAutoSelect 安全契约。
+            // Only remove the items that are checked by default (high confidence): Items with low confidence or requiring confirmation comply with the scanner’s CanAutoSelect security contract.
             var selectedItems = items.Where(i => i.IsSelected).ToList();
             var skippedCount = items.Count - selectedItems.Count;
 
-            // 未扫到任何可自动删除的残留（含“全部为低置信项”的情形）：
-            // 不能弹“将删除全部残留”的失真文案，而是明确告知只移除卸载登记项。
+            // No residual items were detected that could be automatically deleted (including cases where “all items are low-confidence”):
+            // Don’t use misleading copy that says “Will delete all residual files”; instead, clearly state that only the uninstallation registry entries will be removed.
             if (selectedItems.Count == 0)
             {
                 var ask = (items.Count == 0
@@ -396,7 +396,7 @@ public sealed class MainViewModel : ObservableObject
                               : "确定继续吗？");
                 if (_ui.ConfirmDanger(ask, "强制删除"))
                 {
-                    // 与主删除路径一致：建立清理会话、删注册表登记项前自动备份、最后展示结果窗口。
+                    // Same as the main deletion process: Create a cleanup session, automatically back up the registry entries before deleting them, and finally display the results window.
                     IsBusy = true;
                     BusyText = "正在移除卸载登记项…";
                     var regSession = new CleanupSession(CleanupOperation.ForceRemove, targets.Select(p => p.DisplayName));
@@ -418,7 +418,7 @@ public sealed class MainViewModel : ObservableObject
                 return;
             }
 
-            // 3) 列出清单，最终确认一次（唯一安全闸门；不可恢复）。
+            // 3) Compile a list and perform a final confirmation (single point of failure; irreversible).
             var folders = selectedItems.Count(x => x.Type == ResidualType.Folder);
             var regs = selectedItems.Count(x => x.Type == ResidualType.RegistryKey);
             var files = selectedItems.Count(x => x.Type is ResidualType.File or ResidualType.Shortcut);
@@ -449,15 +449,15 @@ public sealed class MainViewModel : ObservableObject
                 return;
             }
 
-            // 4) 删除阶段（确认之后才产生副作用）：先卸载 UWP，再备份并移除卸载登记项，
-            //    最后删除勾选的残留（统一会话，删注册表前自动备份）
+            // 4) Uninstallation phase (side effects occur only after confirmation): First, uninstall the UWP app, then back up and remove the uninstallation registry entries,
+            //    Finally, remove any remaining traces of the selected items (Unified Session; automatically backs up the registry before deletion)
             IsBusy = true;
             BusyText = "正在删除全部残留…";
             var session = new CleanupSession(CleanupOperation.ForceRemove, targets.Select(p => p.DisplayName));
             var uwpWarnings = await UninstallUwpTargetsAsync(uwpTargets, session, null);
             BusyText = "正在删除全部残留…";
-            // 登记项移除与“仅移除登记项”分支同口径记入结果：成功/失败都计数并进清单，
-            // 否则两条路径的结果窗口口径不一致（极端情况显示“成功 0”但登记项确已被删）。
+            // The removal of registry entries is recorded in the same manner as the “Remove Registry Entries Only” branch: both success and failure are counted and included in the list,
+            // Otherwise, the results displayed by the two paths will not match (in extreme cases, "Success 0" is displayed even though the entry has actually been deleted).
             var regResult = new ResidualCleanResult();
             var result = await Task.Run(() =>
             {
@@ -486,8 +486,8 @@ public sealed class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 逐个卸载 UWP 目标（仅在用户确认后调用），结果记入会话日志；
-    /// 失败项返回警告清单（result 非空时同步计入其 Warnings）。
+    /// Uninstall UWP targets one by one (only after the user confirms), and record the results in the session log;
+    /// Returns a list of warnings for failed items (if `result` is not empty, the warnings are included in its `Warnings`).
     /// </summary>
     private async Task<List<string>> UninstallUwpTargetsAsync(
         List<InstalledProgram> uwpTargets, CleanupSession session, ResidualCleanResult? result)
@@ -515,9 +515,9 @@ public sealed class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 备份并移除单个程序的卸载登记项，成败记入结果与会话日志。
-    /// 契约与 ResidualCleaner.CleanRegistry 对齐：备份失败且键仍存在时中止删除，
-    /// 不让“删除注册表登记项前会自动导出 .reg 备份”的承诺落空。
+    /// Back up and remove the uninstallation registry entries for a single program; the success or failure of the operation is recorded in the results and session logs.
+    /// Alignment with ResidualCleaner.CleanRegistry: Abort deletion when the backup fails and the key still exists,
+    /// We won't let the promise to "automatically export a .reg backup before deleting a registry entry" go unfulfilled.
     /// </summary>
     private void RemoveUninstallEntry(InstalledProgram p, CleanupSession session, ResidualCleanResult result)
     {
@@ -548,7 +548,7 @@ public sealed class MainViewModel : ObservableObject
     private static string DescribeTargets(IReadOnlyList<InstalledProgram> targets)
         => targets.Count == 1 ? targets[0].DisplayName : $"{targets.Count} 个程序";
 
-    // ------------- 批量卸载 -------------
+    // ------------- Batch Uninstall -------------
     private async Task BatchUninstallAsync()
     {
         var targets = _all.Where(p => p.IsSelected).ToList();
@@ -563,8 +563,8 @@ public sealed class MainViewModel : ObservableObject
             return;
 
         int ok = 0, fail = 0;
-        // 仅对“确实卸载成功”的程序进入残留清理：失败/不确定项仍在本机可用，
-        // 若也清残留会误删仍在使用的软件文件与注册表项。
+        // Residual files are cleaned up only for programs that were "successfully uninstalled"; failed or uncertain entries remain available on the local machine,
+        // If left unchecked, the cleanup process may accidentally delete software files and registry entries that are still in use.
         var succeeded = new List<InstalledProgram>();
         foreach (var p in targets)
         {
@@ -579,7 +579,7 @@ public sealed class MainViewModel : ObservableObject
             }
             catch (Exception ex)
             {
-                // 失败原因必须落日志：静默吞掉后用户无从得知该程序为何卸载失败
+                // The cause of the failure must be logged: if it is silently ignored, users will have no way of knowing why the uninstallation failed.
                 fail++;
                 AppLogger.Warn($"批量卸载失败: {p.DisplayName}", ex);
             }
@@ -592,7 +592,7 @@ public sealed class MainViewModel : ObservableObject
         await RefreshAsync();
     }
 
-    // ------------- 仅清理残留（支持多选批量）-------------
+    // ------------- Removes only residual data (supports multiple selections for batch processing) ------------
     private void CleanResidualsForSelected()
     {
         var targets = GetActionTargets();
@@ -600,11 +600,11 @@ public sealed class MainViewModel : ObservableObject
         _ui.CleanResiduals(targets);
     }
 
-    // ------------- 选择辅助 -------------
+    // ------------- Select Support -------------
     /// <summary>
-    /// 勾选：作用于当前可见（搜索过滤后）列表；
-    /// 取消勾选：作用于全量列表——避免被过滤隐藏的勾选项残留，
-    /// 随后被批量卸载/强制删除（它们作用于全量勾选项）静默波及。
+    /// Check this box: Applies to the currently visible list (after search filtering);
+    /// Uncheck: Applies to the entire list—to prevent checkboxes that have been filtered out from remaining,
+    /// They were subsequently silently affected by bulk uninstallation/forced deletion (which applied to all checked options).
     /// </summary>
     public void SetAllChecked(bool value)
     {
@@ -616,14 +616,14 @@ public sealed class MainViewModel : ObservableObject
 
     private void InvertChecked()
     {
-        // 反选仅作用于可见项；被搜索过滤隐藏的勾选项同时清零——
-        // 与 SetAllChecked(false) 同一防护契约，避免隐藏勾选项被批量操作静默波及
+        // Deselecting applies only to visible items; checkboxes hidden by search filters are cleared at the same time—
+        // Follows the same safety contract as `SetAllChecked(false)`, preventing hidden checkboxes from being silently affected by batch operations.
         var visible = new HashSet<InstalledProgram>(Programs);
         foreach (var p in _all)
             p.IsSelected = visible.Contains(p) && !p.IsSelected;
     }
 
-    /// <summary>表头全选框回显状态：可见项全选=true，全不选=false，部分=null。</summary>
+    /// <summary>Header "Select All" checkbox status: "Select all visible items" = true, "Deselect all" = false, "Partial" = null. </summary>
     public bool? AllCheckedState
     {
         get
@@ -656,7 +656,7 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    // ------------- 打开操作 -------------
+    // ------------- Opening Instructions -------------
     private void OpenInstallFolder()
     {
         var loc = SelectedProgram?.InstallLocation;

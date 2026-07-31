@@ -8,7 +8,7 @@ public sealed partial class DeskNestService
     {
         try
         {
-            // 确保已注册 Toast 通知（需要 Start Menu 快捷方式）
+            // Ensure Toast notifications are registered (requires a Start Menu shortcut)
             if(!toastReady){try{TryRegisterToastActivator();toastReady=true;}catch{return;}}
             new Microsoft.Toolkit.Uwp.Notifications.ToastContentBuilder()
                 .AddText(title)

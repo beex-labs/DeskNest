@@ -2,7 +2,7 @@ using System.Text.RegularExpressions;
 
 namespace BeeX.DeskNest;
 
-/// <summary>歌词匹配评分算法（纯计算函数，适合单元测试）</summary>
+/// <summary>Lyrics match scoring algorithm (pure functions, suitable for unit testing).</summary>
 internal static partial class LyricsMatching
 {
     public static int MatchScore(string expectedTitle, string expectedArtist, string actualTitle, string actualArtist)

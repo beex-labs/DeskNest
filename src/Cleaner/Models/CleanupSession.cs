@@ -4,22 +4,22 @@ using BeeXCleaner.Infrastructure;
 
 namespace BeeXCleaner.Models;
 
-/// <summary>清理操作类型。</summary>
+/// <summary>Cleanup operation types. </summary>
 public enum CleanupOperation
 {
-    /// <summary>卸载后残留清理。</summary>
+    /// <summary>Cleaning up leftover files after uninstallation.</summary>
     Residual,
-    /// <summary>全系统遗留清理。</summary>
+    /// <summary>System-wide legacy cleanup. </summary>
     Orphan,
-    /// <summary>强制删除。</summary>
+    /// <summary>Forced deletion.</summary>
     ForceRemove,
-    /// <summary>快速删除文件/文件夹。</summary>
+    /// <summary>Quickly delete files/folders.</summary>
     QuickDelete
 }
 
 /// <summary>
-/// 清理会话：一次“清理动作”对应一个会话，统一分配备份目录、日志路径，并累积操作日志。
-/// 备份目录延迟创建（首次备份时才真正建立），避免产生大量空目录。
+/// Clear Session: Each "clear operation" corresponds to a single session, uniformly assigning backup directories and log paths, and accumulating operation logs.
+/// The backup directory is created later (it is not actually created until the first backup), to avoid generating a large number of empty directories.
 /// </summary>
 public sealed class CleanupSession
 {
@@ -30,7 +30,7 @@ public sealed class CleanupSession
     {
         OperationType = op;
         StartedAt = DateTime.Now;
-        // 附加短随机后缀：秒级粒度下同秒两次同类操作会碰撞，导致日志互相覆盖、备份目录混叠
+        // Append a short random suffix: If two operations of the same type occur within the same second at the second-level granularity, they will conflict, causing logs to overwrite each other and backup directories to become mixed up.
         SessionId = $"{StartedAt:yyyyMMdd-HHmmss}-{op}-{Guid.NewGuid().ToString("N")[..6]}";
         TargetPrograms = (targets ?? Array.Empty<string>()).ToList();
         BackupFolder = Path.Combine(AppPaths.BackupsRoot, SessionId);
@@ -42,13 +42,13 @@ public sealed class CleanupSession
     public CleanupOperation OperationType { get; }
     public IReadOnlyList<string> TargetPrograms { get; }
 
-    /// <summary>本次会话的注册表备份目录（可能尚未创建，见 <see cref="EnsureBackupFolder"/>）。</summary>
+    /// <summary>The registry backup directory for this session (may not have been created yet; see <see cref="EnsureBackupFolder"/>).</summary>
     public string BackupFolder { get; }
 
-    /// <summary>本次会话的日志文件路径。</summary>
+    /// <summary>The path to the log file for this session. </summary>
     public string LogPath { get; }
 
-    /// <summary>是否已产生任何备份（决定结果窗口是否显示备份路径）。</summary>
+    /// <summary>Whether any backups have been created (determines whether the results window displays the backup path). </summary>
     public bool HasBackups => _backupDirCreated;
 
     public string OperationTypeText => OperationType switch
@@ -60,7 +60,7 @@ public sealed class CleanupSession
         _ => "清理"
     };
 
-    /// <summary>确保备份目录存在（首次调用时创建）。返回目录路径。</summary>
+    /// <summary>Ensures that the backup directory exists (it is created on the first call). Returns the directory path. </summary>
     public string EnsureBackupFolder()
     {
         if (!_backupDirCreated)
@@ -71,13 +71,13 @@ public sealed class CleanupSession
         return BackupFolder;
     }
 
-    /// <summary>追加一行操作日志（带时间戳）。</summary>
+    /// <summary>Add a line to the operation log (with a timestamp). </summary>
     public void Log(string line) => _log.AppendLine($"{DateTime.Now:HH:mm:ss}  {line}");
 
-    /// <summary>已累积的操作日志文本。</summary>
+    /// <summary>Text of the accumulated operation logs.</summary>
     public string LogText => _log.ToString();
 
-    /// <summary>把会话日志（含头部元信息）写盘。返回日志文件路径，失败返回 null。</summary>
+    /// <summary> Writes the session log (including header metadata) to disk. Returns the path to the log file; returns null on failure. </summary>
     public string? Flush(string? summary = null)
     {
         try

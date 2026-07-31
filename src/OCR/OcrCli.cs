@@ -173,17 +173,17 @@ internal static class OcrCli
     }
 
     /// <summary>
-    /// 侧车常驻模式：模型只加载一次，通过 stdin/stdout 行协议服务 DeskNest。
-    /// 请求：OCR\t图片路径\t结果文件 或 FORMULA\t图片路径\t结果文件 或 EXIT；
-    /// 响应：OK\t耗时ms 或 ERR\t错误信息。启动完成后输出 READY。
-    /// role 决定预加载哪个引擎：ocr（默认，MKL 侧车）或 formula（openblas 侧车）。
+    /// Sidecar resident mode: the model is loaded only once and serves DeskNest via a stdin/stdout line protocol.
+    /// Request: OCR\t<image path>\t<result file> or FORMULA\t<image path>\t<result file> or EXIT;
+    /// Response: OK\t<elapsed ms> or ERR\t<error message>. Outputs READY once startup is complete.
+    /// role decides which engine to preload: ocr (default, MKL sidecar) or formula (openblas sidecar).
     /// </summary>
     private static void RunServeLoop(string? role)
     {
         using var ocrService = new OcrService();
         using var formulaService = new FormulaRecognitionService();
         using var tableService = new TableRecognitionService(ocrService);
-        // 与 DeskNest 约定双向 UTF-8，避免中文路径在默认代码页下乱码
+        // Agreed with DeskNest to use bidirectional UTF-8, avoiding garbled Chinese paths under the default code page
         using var input = new StreamReader(Console.OpenStandardInput(), new System.Text.UTF8Encoding(false));
         using var output = new StreamWriter(Console.OpenStandardOutput(), new System.Text.UTF8Encoding(false)) { AutoFlush = true };
 
@@ -193,8 +193,8 @@ internal static class OcrCli
         }
         else
         {
-            // WarmUpAsync 会真实跑一张小图，把 Paddle 首次推理的图优化也在 READY 前做完，
-            // 用户首次识别不再多等 1~2s
+            // WarmUpAsync actually runs a small image, doing Paddle's first-inference graph optimization before READY too,
+            // so the user's first recognition no longer waits an extra 1-2s
             ocrService.WarmUpAsync(null).GetAwaiter().GetResult();
         }
 

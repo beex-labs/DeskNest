@@ -27,14 +27,14 @@ public partial class App : System.Windows.Application
     {
         TrySetAppUserModelId();
         base.OnStartup(e);
-        // 后台回收上次安全擦除异常中断（进程被杀/断电）残留的盘根填充目录，恢复被占满的磁盘空间
+        // The background process reclaims the disk root fill directory left over from a previously abnormally terminated secure erase (process terminated/power loss) and recovers the occupied disk space.
         _ = Task.Run(BeeXCleaner.Services.FreeSpaceWiper.CleanupLeftoverFillDirs);
         EventManager.RegisterClassHandler(typeof(Window), Window.LoadedEvent, new RoutedEventHandler((sender, _) =>
         {
             if (sender is Window window) ApplyBeeXWindowIcon(window);
         }));
-        // 以「系统清理」独立模式启动：仅显示 BeeX 清理窗口（通常由主程序以管理员身份重新拉起），
-        // 不创建单实例互斥、不启动桌面挂件服务，窗口关闭即退出该进程。
+        // Launch in "System Cleanup" standalone mode: Displays only the BeeX cleanup window (typically relaunched by the main program as an administrator),
+        // Do not create a single-instance lock; do not start the desktop widget service; the process terminates when the window is closed.
         if(e.Args.Any(x=>string.Equals(x,"--cleaner",StringComparison.OrdinalIgnoreCase)))
         {
             ShutdownMode=ShutdownMode.OnMainWindowClose;
@@ -63,7 +63,7 @@ public partial class App : System.Windows.Application
             if(!ownsInstance){BeeXDialog.Alert(null,"BeeX DeskNest","原有實例未能正常關閉，請稍後再試。",state);Shutdown();return;}
         }
         var screenshotRegression=e.Args.Any(x=>string.Equals(x,"--screenshot-regression",StringComparison.OrdinalIgnoreCase));
-        // 升級後首次啟動：把舊版散落在 AppData/圖片庫/文檔庫的資料一次性遷入統一 BeeX 根目錄（OCR 約 600MB 跨卷時較慢，帶進度窗）
+        // First launch after the update: Migrate all data from the old version scattered across AppData/Pictures/Documents to the unified BeeX root directory in a single operation (OCR is approximately 600 MB; the process may be slow when moving data across volumes, and a progress window will appear).
         RunLegacyMigrationIfNeeded();
         service = new DeskNestService();
         service.Start(!screenshotRegression);
@@ -71,7 +71,7 @@ public partial class App : System.Windows.Application
     }
     static List<Process> FindOtherInstances(){var current=Process.GetCurrentProcess();try{return Process.GetProcessesByName(current.ProcessName).Where(p=>p.Id!=current.Id).ToList();}catch{return [];}}
     static AppState LoadSavedAppearance(){try{var path=BeeXPaths.StateFile;return File.Exists(path)?JsonSerializer.Deserialize<AppState>(File.ReadAllText(path))??new():new();}catch{return new();}}
-    /// <summary>舊資料一次性遷移：小進度窗 + 後台線程搬移，完成前不可關閉（避免半遷移狀態）。</summary>
+    /// <summary>One-time migration of legacy data: Small progress window + background thread migration; do not close the window until completion (to avoid a partial migration state).</summary>
     static void RunLegacyMigrationIfNeeded()
     {
         if(!BeeXPaths.NeedsLegacyMigration){BeeXPaths.EnsureLayout();return;}

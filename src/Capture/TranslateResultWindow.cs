@@ -23,7 +23,7 @@ using WpfHAlign = System.Windows.HorizontalAlignment;
 namespace BeeX.DeskNest;
 
 /// <summary>
-/// 悬浮翻译结果窗口：显示 OCR 原文及翻译译文，支持语言切换、复制、拖动。
+/// Floating Translation Results Window: Displays the original OCR text and the translated text; supports language switching, copying, and dragging.
 /// </summary>
 internal sealed class TranslateResultWindow : Window
 {
@@ -51,7 +51,7 @@ internal sealed class TranslateResultWindow : Window
         Background = Brushes.Transparent;
         SizeToContent = SizeToContent.WidthAndHeight;
 
-        /* ── 标题栏 ── */
+        /* ── Title Bar ── */
         var titleText = new TextBlock
         {
             Text = "翻译结果",
@@ -83,7 +83,7 @@ internal sealed class TranslateResultWindow : Window
         Grid.SetColumn(closeBtn, 1);
         titleBar.Children.Add(closeBtn);
 
-        /* ── 原文区域 ── */
+        /* ── Original Text Area ── */
         var sourceLabel = new WpfLabel
         {
             Content = Localization.T("原文", Localization.CurrentLanguage),
@@ -111,7 +111,7 @@ internal sealed class TranslateResultWindow : Window
         sourcePanel.Children.Add(sourceLabel);
         sourcePanel.Children.Add(_sourceBox);
 
-        /* ── 译文区域 ── */
+        /* ── Translation Area ── */
         var targetLabel = new WpfLabel
         {
             Content = Localization.T("譯文", Localization.CurrentLanguage),
@@ -139,14 +139,14 @@ internal sealed class TranslateResultWindow : Window
         targetPanel.Children.Add(targetLabel);
         targetPanel.Children.Add(_targetBox);
 
-        /* ── 工具栏 ── */
+        /* ── Toolbar ── */
         var languages = GetTargetLanguages();
         _langCombo = new WpfComboBox { HorizontalAlignment = WpfHAlign.Left, MinWidth = 100, DisplayMemberPath = nameof(LangOption.DisplayName) };
         foreach (var lang in languages)
         {
             _langCombo.Items.Add(lang);
         }
-        // 设置默认选中
+        // Set as default selection
         for (int i = 0; i < languages.Count; i++)
         {
             if (string.Equals(languages[i].Code, _targetLangCode, StringComparison.OrdinalIgnoreCase))
@@ -198,7 +198,7 @@ internal sealed class TranslateResultWindow : Window
         toolbar.Children.Add(copyBtn);
         toolbar.Children.Add(_statusLabel);
 
-        /* ── 主布局 ── */
+        /* ── Main Layout ── */
         var root = new StackPanel { Width = 480 };
         root.Children.Add(titleBar);
         root.Children.Add(sourcePanel);
@@ -223,7 +223,7 @@ internal sealed class TranslateResultWindow : Window
         };
         Content = card;
 
-        /* ── 交互事件 ── */
+        /* ── Interaction Events ── */
         MouseLeftButtonDown += (_, e) =>
         {
             if (e.ClickCount == 2) { Close(); return; }
@@ -232,7 +232,7 @@ internal sealed class TranslateResultWindow : Window
 
         KeyDown += (_, e) => { if (e.Key == Key.Escape) Close(); };
 
-        /* ── 右键菜单 ── */
+        /* ── Right-Click Menu ── */
         var menu = new WpfContextMenu
         {
             Background = new SolidColorBrush(Color.FromArgb(236, 13, 19, 33)),
@@ -249,7 +249,7 @@ internal sealed class TranslateResultWindow : Window
         ContextMenu = menu;
     }
 
-    /// <summary>创建窗口并开始翻译。</summary>
+    /// <summary>Create a window and start translating.</summary>
     public static async Task ShowAsync(string ocrText, string targetLanguage)
     {
         var window = new TranslateResultWindow(ocrText, targetLanguage);
@@ -289,7 +289,7 @@ internal sealed class TranslateResultWindow : Window
         }
     }
 
-    /// <summary>根据文本内容推断默认目标语言：中文→英文，否则→中文。</summary>
+    /// <summary>Infer the default target language based on the text content: Chinese → English; otherwise → Chinese. </summary>
     internal static string InferTargetLanguage(string text)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -299,14 +299,14 @@ internal sealed class TranslateResultWindow : Window
         return hasCjk ? "en" : "zh-CN";
     }
 
-    /* ── 内联翻译逻辑（与 BeeX.OCR.TranslationService 同算法，避免跨程序集依赖） ── */
+    /* ── Inline Translation Logic (uses the same algorithm as BeeX.OCR.TranslationService to avoid cross-assembly dependencies) ── */
 
     private static string? _cachedDeepLKey;
     private static bool _deepLKeyLoaded;
     private static readonly object DeepLLock = new();
 
     /// <summary>
-    /// 获取 DeepL API Key，优先级：用户 Key > 发行商 Key > null。
+    /// Obtain a DeepL API key; priority: User Key > Publisher Key > null.
     /// </summary>
     private static string? GetDeepLApiKey()
     {
@@ -315,7 +315,7 @@ internal sealed class TranslateResultWindow : Window
         {
             if (_deepLKeyLoaded) return _cachedDeepLKey;
 
-            // 1. 优先：用户设置的 Key（从 config.json 读取）
+            // 1. Priority: User-defined key (read from config.json)
             string? userKey = UserConfigHelper.ReadDeepLApiKey();
             if (!string.IsNullOrWhiteSpace(userKey))
             {
@@ -324,7 +324,7 @@ internal sealed class TranslateResultWindow : Window
                 return _cachedDeepLKey;
             }
 
-            // 2. 发行商内置 Key（硬编码）
+            // 2. Publisher-embedded key (hard-coded)
             const string PublisherKey = "448cb35d-6320-4ec4-9451-979a7c560b51:fx";
             if (!string.IsNullOrWhiteSpace(PublisherKey))
             {
@@ -333,7 +333,7 @@ internal sealed class TranslateResultWindow : Window
                 return _cachedDeepLKey;
             }
 
-            // 3. 无 Key
+            // 3. No Key
             _cachedDeepLKey = null;
             _deepLKeyLoaded = true;
             return null;
@@ -341,7 +341,7 @@ internal sealed class TranslateResultWindow : Window
     }
 
     /// <summary>
-    /// 清除 DeepL Key 缓存，使下次调用时重新读取。
+    /// Clear the DeepL Key cache so that it is re-read the next time it is called.
     /// </summary>
     public static void ClearDeepLKeyCache()
     {
@@ -370,7 +370,7 @@ internal sealed class TranslateResultWindow : Window
         if (string.Equals(sourceLangCode, targetLangCode, StringComparison.OrdinalIgnoreCase))
             return text;
 
-        // 1. 尝试 DeepL
+        // 1. Try DeepL
         string? deepLKey = GetDeepLApiKey();
         if (!string.IsNullOrEmpty(deepLKey))
         {
@@ -380,11 +380,11 @@ internal sealed class TranslateResultWindow : Window
             }
             catch
             {
-                // DeepL 失败，回退 MyMemory
+                // DeepL failed, so I fell back on MyMemory
             }
         }
 
-        // 2. 兜底 MyMemory
+        // 2. Fallback: MyMemory
         return await TranslateViaMyMemory(text, sourceLangCode, targetLangCode);
     }
 
@@ -401,7 +401,7 @@ internal sealed class TranslateResultWindow : Window
         if (!string.IsNullOrEmpty(sourceLang))
             parameters["source_lang"] = sourceLang;
 
-        // DeepL 2025-11 起弃用 form body 里的 auth_key，必须用 Authorization 头
+        // Starting in November 2025, DeepL will deprecate the `auth_key` in the form body; you must use the `Authorization` header instead.
         using var request = new HttpRequestMessage(HttpMethod.Post, "https://api-free.deepl.com/v2/translate");
         request.Headers.TryAddWithoutValidation("Authorization", "DeepL-Auth-Key " + apiKey);
         request.Content = new FormUrlEncodedContent(parameters);

@@ -4,7 +4,7 @@ using BeeX.DeskNest;
 
 namespace BeeX.DeskNest.LyricsProviders;
 
-/// <summary>QQ音乐歌词搜索</summary>
+/// <summary>QQ Music lyrics search.</summary>
 internal static class QQMusicLyricsProvider
 {
     public static async Task<(string Provider, string Lrc)?> TryAsync(string title, string artist, CancellationToken token)

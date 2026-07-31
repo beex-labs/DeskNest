@@ -4,13 +4,13 @@ using System.Text;
 namespace BeeXCleaner.Infrastructure;
 
 /// <summary>
-/// 轻量内部日志：写入 Logs\app.log。用户界面通常不弹出这些内容，
-/// 但异常、扫描失败等信息会落盘可查，避免问题被空 catch 悄悄吞掉。线程安全。
+/// Lightweight internal logging: Written to Logs\app.log. The user interface typically does not display this information,
+/// However, information such as exceptions and scan failures is logged for future reference, preventing issues from being silently swallowed by an empty `catch` block. Thread-safe.
 /// </summary>
 public static class AppLogger
 {
     private static readonly object _gate = new();
-    private const long MaxBytes = 2 * 1024 * 1024; // 2MB 后滚动一次
+    private const long MaxBytes = 2 * 1024 * 1024; // Scroll once every 2 MB
 
     public static void Info(string message) => Write("INFO", message, null);
     public static void Warn(string message, Exception? ex = null) => Write("WARN", message, ex);
@@ -33,7 +33,7 @@ public static class AppLogger
                 File.AppendAllText(path, sb.ToString(), Encoding.UTF8);
             }
         }
-        catch { /* 日志失败绝不能影响主流程 */ }
+        catch { /* Logging failures must never affect the main process. */ }
     }
 
     private static void RollIfNeeded(string path)
@@ -46,6 +46,6 @@ public static class AppLogger
             if (File.Exists(bak)) File.Delete(bak);
             File.Move(path, bak);
         }
-        catch { /* 忽略滚动失败 */ }
+        catch { /* Ignore Scroll Failure */ }
     }
 }

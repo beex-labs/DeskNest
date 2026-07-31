@@ -4,10 +4,10 @@ namespace BeeX.DeskNest;
 
 partial class EasterEggGame
 {
-    /// <summary>關卡生成：在主路線遊走中放置下一塊平台，確保不與已有矩形重疊（最多 12 次嘗試）</summary>
+    /// <summary>Level generation: places the next platform along the main-route walk, ensuring no overlap with existing rects (up to 12 attempts).</summary>
     void PlaceNext(List<Rect> rects,double width,double prevW,double dy,double tight,ref double dir,ref double px,ref double py,double bandTop,double bandBottom)
     {
-        // 由跳躍物理實時推導：滿跳上升 + 加重下落，在高差 dy（下落為正）下可跨越的最大邊緣間隙（留 90px 容錯，兼顧滑動平台擺幅）
+        // Derived in real time from jump physics: full-jump rise + heavier fall, the max edge gap crossable at height difference dy (falling positive), leaving 90px tolerance and accounting for sliding-platform amplitude
         double MaxEdgeGap(double ddy)
         {
             var tUp=-JumpV/Gravity;var apex=JumpV*JumpV/(2*Gravity);

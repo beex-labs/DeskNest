@@ -24,11 +24,11 @@ using Control = System.Windows.Controls.Control;
 namespace BeeX.DeskNest;
 
 /// <summary>
-/// Ctrl+Q 全局統一搜索窗（原快速啟動格子的繼任者）：
-/// 喚起時只有一個乾淨的搜索框，輸入後出現下拉結果列表。
-/// 無前綴＝統一搜索（BeeX 命令＋程式＋全盤文件索引＋直達路徑/網址＋算式）；
-/// 前綴過濾：= 計算、@ 命令、. 程式、? 僅文件、/ 網頁、~ 常用資料夾、!! 上次結果。
-/// 文件搜索由自研 MFT/USN 索引（FileIndexService）提供毫秒級全盤結果。
+/// Ctrl+Q Global Search Window (successor to the Quick Launch bar):
+/// When the app is launched, only a blank search bar appears; after you type something, a list of drop-down results appears.
+/// No prefix = Unified Search (BeeX commands + programs + full-disk file index + direct paths/URLs + formulas);
+/// Prefix filtering: = Calculations, @ Commands, . Programs, ? Documents only, / Web pages, ~ Frequently used folders, !! Previous results.
+/// File search is powered by our in-house MFT/USN index (FileIndexService), which delivers millisecond-level results across the entire disk.
 /// </summary>
 public sealed class SearchPaletteWindow : Window
 {
@@ -42,7 +42,7 @@ public sealed class SearchPaletteWindow : Window
     bool dragging;
     static readonly Lazy<List<string>> programShortcuts = new(BuildProgramIndex, true);
 
-    /// <summary>一條結果：Icon=SVG 圖標名；IconPath 非空時（應用程式）改用該檔案的真實 Shell logo，抽取失敗回退 Icon；KeepOpen=true 的指引項點選後只填前綴不關窗。</summary>
+    /// <summary>One result: Icon=SVG icon name; when IconPath is not empty, the application uses the actual Shell logo from that file; if extraction fails, it falls back to the default icon; when KeepOpen=true, clicking the menu item fills only the prefix without closing the window. </summary>
     sealed record PaletteResult(string Icon, string Title, string Detail, Action Run, string? IconPath = null, bool KeepOpen = false);
 
     public SearchPaletteWindow(DeskNestService service)
@@ -55,8 +55,8 @@ public sealed class SearchPaletteWindow : Window
         AllowsTransparency = true;
         Background = Brushes.Transparent;
         SizeToContent = SizeToContent.Height;
-        // 窗寬 = 卡片寬(640) + 兩側透明外邊距(24*2)：留出空間讓 DropShadow 辉光在透明區自然淡出，
-        // 不被窗口矩形邊界裁成四個方角（這才是「四個突出的角」的真正成因）。
+        // Window width = Card width (640) + transparent margins on both sides (24*2): to allow space for the DropShadow glow to fade naturally into the transparent areas,
+        // Not being cropped into four square corners by the window’s rectangular boundaries (this is the real reason for the “four protruding corners”).
         Width = 688;
 
         input = new TextBox
@@ -106,10 +106,10 @@ public sealed class SearchPaletteWindow : Window
         
         delay.Tick += async (_, _) => { delay.Stop(); await RefreshAsync(); };
         Deactivated += (_, _) => { if (!dragging) HidePalette(); };
-        // Win11 下 DWM 仍會對 WindowStyle=None 的窗矩形加約 8px 系統圓角/邊框，與卡片 Border 的 12px 圓角不一致，
-        // DWM 那個更小的方角會從卡片圓角外「戱」出來——DisableSystemShadow 設 DONOTROUND + 邊框色 NONE 消除這四個突出的角。
+        // In Windows 11, DWM still adds approximately 8px of system-provided rounded corners/borders to window rectangles with `WindowStyle=None`, which is inconsistent with the 12px rounded corners of the card border,
+        // In DWM, the smaller square corners "stick out" beyond the card's rounded corners—set `DisableSystemShadow` to `DONOTROUND` and the border color to `NONE` to eliminate these four protruding corners.
         SourceInitialized += (_, _) => { WindowRegionHelper.HideFromAltTab(this); WindowRegionHelper.DisableSystemShadow(this); };
-        // 拖動搜索窗：點卡片空白處拖拽移位（輸入框/結果列表等交互元素不視為拖動），釋放時記位置
+        // Drag the search pane: Click on a blank area of a card to drag and reposition it (interactive elements such as input fields and result lists are not considered draggable); the position is saved when you release the mouse.
         card.MouseLeftButtonDown += (_, e) =>
         {
             if (e.ButtonState != MouseButtonState.Pressed || InputHitTestHelper.IsInteractive(e.OriginalSource as DependencyObject)) return;
@@ -118,13 +118,13 @@ public sealed class SearchPaletteWindow : Window
             dragging = false;
             service.State.PaletteLeft = Left; service.State.PaletteTop = Top; service.SaveSoon();
         };
-        // 喚起窗自身聚焦期間挂起全局熱鍵沒必要——但輸入框需要輸入法
+        // There's no need to suspend global hotkeys while the window is in focus—but the input field requires an input method.
         InputMethod.SetIsInputMethodEnabled(input, true);
     }
 
     string L(string value) => Localization.T(value, service.State.Language);
 
-    /// <summary>跟隨應用主題（Dark / Honey / 清透）：卡片底色與文字對比色每次喚起時重算</summary>
+    /// <summary> Follow app theme (Dark / Honey / Transparent): The card background color and text contrast color are recalculated each time the app is launched </summary>
     void ApplyTheme()
     {
         var theme = service.State.Theme;
@@ -140,13 +140,13 @@ public sealed class SearchPaletteWindow : Window
         FontFamily = new System.Windows.Media.FontFamily(service.InterfaceFontFamily());
     }
 
-    /// <summary>喚起：優先用上次拖動位置，否則定位到鼠標所在螢幕上方 24% 居中；清空輸入並聚焦。</summary>
+    /// <summary>On activation: Use the last drag position if available; otherwise, position the element at the top 24% of the screen, centered, relative to the mouse cursor; clear the input and set focus. </summary>
     public void ShowPalette()
     {
         ApplyTheme();
         var area = Forms.Screen.FromPoint(Forms.Cursor.Position).WorkingArea;
         var dpi = VisualTreeHelper.GetDpi(this);
-        // 上次拖動位置仍在某块螢幕的可見範圍內就汿用，否則居中（避免拔掉副屏后窗子飛到屏外）
+        // If the last dragged position is still within the visible area of a screen, use that; otherwise, center it (to prevent the window from flying off the screen after unplugging the secondary monitor).
         var restore = service.State.PaletteLeft is double left && service.State.PaletteTop is double top
             && left >= SystemParameters.VirtualScreenLeft - 40 && top >= SystemParameters.VirtualScreenTop - 40
             && left <= SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth - 80
@@ -182,20 +182,20 @@ public sealed class SearchPaletteWindow : Window
     void RunSelection()
     {
         if (results.SelectedItem is not PaletteResult result) return;
-        if (result.KeepOpen) { try { result.Run(); } catch { } return; } // 指引項：只填前綴，不執行、不關窗
+        if (result.KeepOpen) { try { result.Run(); } catch { } return; } // Guidance: Enter only the prefix; do not execute, do not close the window
         service.State.PaletteLastResult = result.Title;
         service.SaveSoon();
         HidePalette();
         try { result.Run(); } catch { }
     }
 
-    // 空輸入時：開啟指引則顯示指令下拉，否則保持簡約空白（受設定 ShowSearchPaletteGuide 控制）
+    // When no input is provided: If the guide is enabled, a drop-down list of commands is displayed; otherwise, the area remains blank (controlled by the ShowSearchPaletteGuide setting).
     void ShowGuideOrEmpty() => SetResults(service.State.ShowSearchPaletteGuide ? GuideResults() : []);
 
-    // 填入前綴並聚焦：TextChanged 會觸發 RefreshAsync 顯示該前綴的結果/提示，窗不關
+    // Enter the prefix and focus: TextChanged triggers RefreshAsync to display results/suggestions for that prefix; the window remains open.
     void FillPrefix(string prefix) { input.Text = prefix; input.CaretIndex = input.Text.Length; input.Focus(); }
 
-    /// <summary>空輸入時的下拉指令指引（每命令一行）：點擊/回車填入對應前綴而非執行，可在設定關閉。</summary>
+    /// <summary>Drop-down command guide when the input is empty (one command per line): Click or press Enter to enter the corresponding prefix instead of executing the command; this can be disabled in settings. </summary>
     List<PaletteResult> GuideResults() =>
     [
         new("search", L("直接輸入即可綜合搜尋"), L("自動識別路徑、網址、程式與文件"), () => { }, KeepOpen: true),
@@ -216,7 +216,7 @@ public sealed class SearchPaletteWindow : Window
             var text = input.Text.Trim();
             if (text.Length == 0) { ShowGuideOrEmpty(); return; }
             List<PaletteResult> list;
-            // 前綴路由（長/全寬前綴先判）：!! 上次結果、?? 瀏覽器、= 計算、@ 本軟體設定/功能、. 應用程式、file 文件/資料夾、~ 常用資料夾；皆支持全/半寬符號；無前綴走 Unified
+            // Prefix Routing (Long/Full-Width Prefixes Checked First): !! Previous Results, ?? Browser, = Calculation, @ Software Settings/Features, . Application, file File/Folder, ~ Frequently Used Folders; all support full-width and half-width characters; if no prefix is specified, use Unified.
             if (text.StartsWith("!!") || text.StartsWith("！！")) list = PreviousResult();
             else if (text.StartsWith("??") || text.StartsWith("？？")) list = WebSearch(text[2..].Trim());
             else if (text.StartsWith('=') || text.StartsWith('＝')) list = Calculate(text[1..]);
@@ -235,7 +235,7 @@ public sealed class SearchPaletteWindow : Window
         }
     }
 
-    /// <summary>無前綴統一搜索：直達路徑/網址 → 算式 → BeeX 命令 → 程式 → 全盤文件 → 網頁兜底。</summary>
+    /// <summary>Unified Search Without Prefix: Direct Path/URL → Formula → BeeX Command → Program → All Files → Web Fallback. </summary>
     List<PaletteResult> Unified(string text)
     {
         var list = new List<PaletteResult>();
@@ -261,7 +261,7 @@ public sealed class SearchPaletteWindow : Window
         return list;
     }
 
-    // 含數字（含全角）且含運算符/括號（含全角）才當作無前綴算式，交給 BeeXExpression 歸一後計算
+    // Only expressions containing numbers (including full-width characters) and operators/parentheses (including full-width characters) are treated as prefix expressions; these are passed to BeeXExpression for normalization before calculation.
     static bool LooksLikeExpression(string text) => text.Length > 0
         && text.Any(c => char.IsDigit(c) || c is >= '０' and <= '９')
         && text.Any(c => c is '+' or '-' or '*' or '/' or '(' or '×' or '÷' or '＋' or '－' or '＊' or '／' or '（' or '−');
@@ -276,7 +276,7 @@ public sealed class SearchPaletteWindow : Window
             if (!service.FileIndex.Ready) list.Insert(0, new("refresh", L("正在建立文件索引…"), L("結果可能不完整，稍候片刻"), () => { }));
             return list;
         }
-        // 索引不可用（極端情況：全盤無 NTFS 卷）：退回桌面/文件/下載目錄遞归
+        // Index unavailable (extreme case: no NTFS volumes on the entire disk): Fall back to recursively scanning the Desktop, Documents, and Downloads directories
         var roots = new[] { Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads") }.Distinct().Where(Directory.Exists);
         var found = new List<string>();
         foreach (var root in roots) SafeFind(root, query, found, limit, 4);
@@ -373,8 +373,8 @@ public sealed class SearchPaletteWindow : Window
             .Select(x => new PaletteResult("folder", x.Item1, x.Item2, () => OpenPath(x.Item2))).ToList();
     }
 
-    // 注冊表搜索（只讀）：在 HKCU / HKLM 下按子鍵名匹配關鍵字，命中項用 regedit 導航打開；
-    // 有節點數/深度/時間三重上限防止全表遍歷卡頓，全程只讀不修改注冊表數據。
+    // Registry Search (Read-Only): Searches for keywords based on subkey names under HKCU / HKLM; matching entries are opened using regedit;
+    // There are triple limits on the number of nodes, depth, and time to prevent slowdowns during full-table traversal; the process is read-only and does not modify registry data at any point.
     List<PaletteResult> SearchRegistry(string query, int limit)
     {
         if (query.Length == 0) return [new("database", L("請輸入註冊表關鍵字"), "例如 : Explorer", () => { })];
@@ -406,7 +406,7 @@ public sealed class SearchPaletteWindow : Window
         }
     }
 
-    // 導航 regedit 到指定鍵：只寫 regedit 自身的 LastKey UI 狀態（標準做法，非數據修改），再啟動 regedit
+    // Navigate regedit to the specified key: Only set regedit's own LastKey UI state (standard practice; no data modification), then restart regedit
     static void OpenRegistry(string path)
     {
         try { using var k = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Applets\Regedit"); k?.SetValue("LastKey", "Computer\\" + path); } catch { }
@@ -449,7 +449,7 @@ public sealed class SearchPaletteWindow : Window
         row.SetValue(FrameworkElement.MarginProperty, new Thickness(2, 3, 2, 3));
         row.SetValue(FrameworkElement.MinHeightProperty, 40d);
 
-        // 圖標：名稱經 IconConverter 在 UI 線程解析為 SVG ImageSource（橘色色調，各主題下都耐看）
+        // Icon: The name is parsed by IconConverter on the UI thread into an SVG ImageSource (orange hue, looks great across all themes)
         var icon = new FrameworkElementFactory(typeof(Image));
         icon.SetValue(Image.WidthProperty, 22d);
         icon.SetValue(Image.HeightProperty, 22d);
@@ -481,7 +481,7 @@ public sealed class SearchPaletteWindow : Window
         return template;
     }
 
-    /// <summary>柔和的選中/悬停高亮：半透明橘色圓角底，取代系統預設的刺眼藍色高亮；內縮確保不碰卡片圓角</summary>
+    /// <summary>Soft select/hover highlight: A semi-transparent, rounded-corner orange background replaces the system's default glaring blue highlight; the indentation ensures it doesn't overlap the card's rounded corners</summary>
     static Style BuildItemStyle()
     {
         var style = new Style(typeof(ListBoxItem));
@@ -489,7 +489,7 @@ public sealed class SearchPaletteWindow : Window
         style.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(0)));
         style.Setters.Add(new Setter(FrameworkElement.MarginProperty, new Thickness(0, 1, 0, 1)));
         style.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(4, 0, 4, 0)));
-        // 自定義模板：背景於 Border（圓角 8），提供 Hover / Selected 觸發器
+        // Custom Template: Background and Border (8-pixel rounded corners), with Hover and Selected triggers
         var tpl = new ControlTemplate(typeof(ListBoxItem));
         var border = new FrameworkElementFactory(typeof(Border)) { Name = "bd" };
         border.SetValue(Border.BackgroundProperty, new System.Windows.Data.Binding { RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.TemplatedParent), Path = new PropertyPath(Control.BackgroundProperty) });
@@ -508,7 +508,7 @@ public sealed class SearchPaletteWindow : Window
         return style;
     }
 
-    /// <summary>圖標解析：應用程式（IconPath 非空）抽 Shell 真實 logo，其餘用 SVG（橘色色調）；按 key 緩存並凍結，必須在 UI 線程調用</summary>
+    /// <summary>Icon explanation: For applications (where IconPath is not empty), use the actual Shell logo; for all others, use SVG (orange tint); cache and freeze by key; must be called on the UI thread </summary>
     sealed class IconConverter : System.Windows.Data.IValueConverter
     {
         public static readonly IconConverter Instance = new();
@@ -522,15 +522,15 @@ public sealed class SearchPaletteWindow : Window
             if (string.IsNullOrEmpty(key)) return null;
             if (cache.TryGetValue(key, out var cached)) return cached;
             ImageSource? image = null;
-            if (!string.IsNullOrEmpty(result.IconPath)) image = TryExtractShellIcon(result.IconPath!); // 應用程式：真實 logo
-            image ??= SvgIcon.Load(result.Icon, 24, accent);                                          // 其餘/抽取失敗：回退 SVG
+            if (!string.IsNullOrEmpty(result.IconPath)) image = TryExtractShellIcon(result.IconPath!); // App: Real Logo
+            image ??= SvgIcon.Load(result.Icon, 24, accent);                                          // Other/Extraction Failed: Fallback to SVG
             try { if (image.CanFreeze) image.Freeze(); } catch { }
             cache[key] = image;
             return image;
         }
         public object ConvertBack(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) => throw new NotSupportedException();
 
-        // 用 Shell 抽取檔案（.lnk/.exe）關聯的應用圖標作為真實 logo，.lnk 會自動解析到目標；失敗回 null 由調用方回退 SVG
+        // Use Shell to extract the application icon associated with a file (.lnk/.exe) as the actual logo; the .lnk file will be automatically resolved to its target. If this fails, return null, and the caller should fall back to using an SVG.
         static ImageSource? TryExtractShellIcon(string path)
         {
             var info = new SHFILEINFO();

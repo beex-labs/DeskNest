@@ -17,8 +17,8 @@ using KeyEventArgs=System.Windows.Input.KeyEventArgs;
 namespace BeeX.DeskNest;
 
 /// <summary>
-/// 引導模式：每台新電腦首次啟動觸發一次的四步嚮導（語言 → 主題 → 起始格子 → 快捷鍵導覽）。
-/// 完成/跳過/直接關窗都會記錄本機機器指紋，之後不再觸發；不再自動塞默認格子，改由用戶自選。
+/// Onboarding mode: a four-step wizard triggered once on each new machine's first launch (language -> theme -> starter widgets -> shortcut tour).
+/// Completing/skipping/closing all record this machine's fingerprint and never trigger again; default widgets are no longer auto-added, the user picks them instead.
 /// </summary>
 sealed class OnboardingWindow : Window
 {
@@ -36,7 +36,7 @@ sealed class OnboardingWindow : Window
         this.service=service;
         language=service.State.Language;
         theme=service.State.Theme;
-        // 預勾選：桌面已有格子（資料目錄遷移到新電腦）時反映現狀，避免完成後出現「只勾待辦卻冒出一堆舊格子」；全新用戶才用推薦四件套
+        // Pre-check: reflect the current state when the desktop already has widgets (data directory migrated to a new machine), avoiding "only Todo checked but a pile of old widgets appear" after completion; only brand-new users get the recommended set of four
         var existing=service.State.Nests.Select(n=>n.Kind).Where(DeskNestService.OnboardingKinds.Contains).ToHashSet();
         picks=existing.Count>0?existing:[NestKind.Todo,NestKind.Music,NestKind.Weather,NestKind.Clock];
         Title="BeeX DeskNest";
@@ -139,7 +139,7 @@ sealed class OnboardingWindow : Window
     TextBlock PageTitle(string key)=>new(){Text=L(key),FontSize=22,FontWeight=FontWeights.SemiBold,Foreground=Fg,HorizontalAlignment=HorizontalAlignment.Center};
     TextBlock PageHint(string key)=>new(){Text=L(key),FontSize=13,Foreground=FgMuted,HorizontalAlignment=HorizontalAlignment.Center,TextWrapping=TextWrapping.Wrap,TextAlignment=TextAlignment.Center,Margin=new Thickness(0,8,0,0)};
 
-    // 第 1 步：歡迎 + 介面語言（語言名稱用各自語言顯示，不做翻譯）
+    // Step 1: welcome + UI language (language names shown in their own language, not translated)
     UIElement BuildWelcomePage()
     {
         var panel=new StackPanel{VerticalAlignment=VerticalAlignment.Center};
@@ -152,7 +152,7 @@ sealed class OnboardingWindow : Window
         {
             var selected=code==language;
             var pill=new Border{CornerRadius=new CornerRadius(20),Padding=new Thickness(26,10,26,10),Margin=new Thickness(8,0,8,0),Cursor=Cursors.Hand,Background=selected?new SolidColorBrush(Color.FromArgb(36,Accent.R,Accent.G,Accent.B)):CardBg,BorderBrush=new SolidColorBrush(selected?Accent:Color.FromArgb(50,Accent.R,Accent.G,Accent.B)),BorderThickness=new Thickness(selected?2:1),Child=new TextBlock{Text=label,FontSize=14,FontWeight=selected?FontWeights.SemiBold:FontWeights.Normal,Foreground=Fg}};
-            // 在 ButtonDown 階段處理並標記 Handled：否則外層 shell 的 DragMove 會吞掉 ButtonUp，點擊選不中
+            // Handle in the ButtonDown phase and mark Handled: otherwise the outer shell's DragMove swallows ButtonUp and the click misses the selection
             pill.MouseLeftButtonDown+=(_,e)=>{language=code;BuildUi();e.Handled=true;};
             row.Children.Add(pill);
         }
@@ -160,7 +160,7 @@ sealed class OnboardingWindow : Window
         return panel;
     }
 
-    // 第 2 步：外觀主題（選中即在嚮導內即時預覽，最終確定才落到全局）
+    // Step 2: appearance theme (selection previews live inside the wizard, only applied globally on final confirmation)
     UIElement BuildThemePage()
     {
         var panel=new StackPanel{VerticalAlignment=VerticalAlignment.Center};
@@ -192,7 +192,7 @@ sealed class OnboardingWindow : Window
         return panel;
     }
 
-    // 第 3 步：自選起始格子（替代舊的「默認塞 4 個格子」設計）
+    // Step 3: pick starter widgets (replaces the old "auto-add 4 widgets by default" design)
     UIElement BuildWidgetPage()
     {
         var panel=new StackPanel{VerticalAlignment=VerticalAlignment.Center};
@@ -230,7 +230,7 @@ sealed class OnboardingWindow : Window
         return panel;
     }
 
-    // 第 4 步：快捷鍵與入口導覽
+    // Step 4: shortcut and entry tour
     UIElement BuildTourPage()
     {
         var panel=new StackPanel{VerticalAlignment=VerticalAlignment.Center};

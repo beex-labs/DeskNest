@@ -31,7 +31,7 @@ public class UserConfigHelperTests : IDisposable
 
     private string ConfigFilePath => Path.Combine(_tempDir, "Data", "config.json");
 
-    // ---- ReadConfigValue: 文件不存在 ----
+    // ---- ReadConfigValue: File does not exist ----
 
     [Fact]
     public void ReadDeepLApiKey_NoConfigFile_ShouldReturnEmpty()
@@ -45,7 +45,7 @@ public class UserConfigHelperTests : IDisposable
         UserConfigHelper.ReadTranslateTarget().Should().Be("auto");
     }
 
-    // ---- WriteConfigValue: 创建新文件 ----
+    // ---- WriteConfigValue: Create a New File ----
 
     [Fact]
     public void WriteDeepLApiKey_ShouldCreateConfigFile()
@@ -61,7 +61,7 @@ public class UserConfigHelperTests : IDisposable
         UserConfigHelper.ReadDeepLApiKey().Should().Be("test-key-456");
     }
 
-    // ---- Write 保留其他 key ----
+    // ---- Write while preserving other keys ----
 
     [Fact]
     public void WriteDeepLApiKey_ShouldPreserveOtherKeys()
@@ -83,7 +83,7 @@ public class UserConfigHelperTests : IDisposable
         UserConfigHelper.ReadTranslateTarget().Should().Be("en");
     }
 
-    // ---- TranslateTarget 读写往返 ----
+    // ---- TranslateTarget Read-Write Round Trip ----
 
     [Fact]
     public void TranslateTarget_RoundTrip_ShouldWork()
@@ -102,7 +102,7 @@ public class UserConfigHelperTests : IDisposable
         UserConfigHelper.ReadTranslateTarget().Should().Be("zh");
     }
 
-    // ---- DeepL Key 读写往返 ----
+    // ---- DeepL Key Read-Write Round Trip ----
 
     [Fact]
     public void DeepLApiKey_RoundTrip_ShouldWork()

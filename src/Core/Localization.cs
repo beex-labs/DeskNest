@@ -8,7 +8,7 @@ namespace BeeX.DeskNest;
 
 static class Localization
 {
-    /// <summary>目前介面語言（zh-TW / zh-CN / en-US），供無法取得 AppState 的靜態場景（如 TextPinWindow、TodoItem 計算屬性）查詢。</summary>
+    /// <summary>Current UI language (zh-TW / zh-CN / en-US), for static contexts that cannot access AppState (e.g. TextPinWindow, TodoItem computed properties).</summary>
     public static string CurrentLanguage { get; set; } = "zh-TW";
     static readonly Dictionary<NestKind,string> DefaultWidgetTitles=new()
     {

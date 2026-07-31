@@ -8,7 +8,7 @@ using MessageBox = System.Windows.MessageBox;
 namespace BeeXCleaner.Views;
 
 /// <summary>
-/// 清理历史窗口（6.2 / 9.4 工具箱）：列出 Logs 目录下的会话日志与内部日志，选中查看内容。
+/// Clear History Window (6.2 / 9.4 Toolbox): Lists session logs and internal logs in the Logs directory; select an item to view its contents.
 /// </summary>
 public partial class CleanupHistoryWindow : Window
 {

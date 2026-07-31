@@ -6,7 +6,7 @@ namespace BeeX.DeskNest.Tests.Core;
 
 public class BeeXExpressionTests
 {
-    // ---- 简单四则运算 ----
+    // ---- Basic Arithmetic Operations ----
 
     [Theory]
     [InlineData("1+2", 3)]
@@ -22,7 +22,7 @@ public class BeeXExpressionTests
         value.Should().Be(expected);
     }
 
-    // ---- 运算符优先级 ----
+    // ---- Operator Precedence ----
 
     [Fact]
     public void TryEvaluate_MultiplicationBeforeAddition()
@@ -38,7 +38,7 @@ public class BeeXExpressionTests
         value.Should().Be(7);
     }
 
-    // ---- 括号覆盖优先级 ----
+    // ---- Parentheses and Operator Precedence ----
 
     [Fact]
     public void TryEvaluate_ParenthesesOverridePrecedence()
@@ -61,7 +61,7 @@ public class BeeXExpressionTests
         value.Should().Be(5);
     }
 
-    // ---- 除零 ----
+    // ---- Division by Zero ----
 
     [Fact]
     public void TryEvaluate_DivisionByZero_ReturnsFalse()
@@ -70,7 +70,7 @@ public class BeeXExpressionTests
         BeeXExpression.TryEvaluate("1/0", out _).Should().BeFalse();
     }
 
-    // ---- 无效表达式 ----
+    // ---- Invalid Expression ----
 
     [Theory]
     [InlineData("abc")]
@@ -84,7 +84,7 @@ public class BeeXExpressionTests
         BeeXExpression.TryEvaluate(expr, out _).Should().BeFalse();
     }
 
-    // ---- 空字符串 ----
+    // ---- Empty string ----
 
     [Theory]
     [InlineData("")]
@@ -94,7 +94,7 @@ public class BeeXExpressionTests
         BeeXExpression.TryEvaluate(expr, out _).Should().BeFalse();
     }
 
-    // ---- Unicode 运算符（× ÷）----
+    // ---- Unicode Operators (× ÷) ----
 
     [Fact]
     public void TryEvaluate_UnicodeMultiply()
@@ -110,7 +110,7 @@ public class BeeXExpressionTests
         value.Should().Be(4);
     }
 
-    // ---- 大数处理 ----
+    // ---- Big Number Processing ----
 
     [Fact]
     public void TryEvaluate_LargeNumbers()
@@ -119,7 +119,7 @@ public class BeeXExpressionTests
         value.Should().Be(999998000001);
     }
 
-    // ---- 空白处理 ----
+    // ---- Handling Blank Spaces ----
 
     [Fact]
     public void TryEvaluate_WhitespaceAroundExpression()
@@ -135,7 +135,7 @@ public class BeeXExpressionTests
         value.Should().Be(9);
     }
 
-    // ---- 小数与逗号小数点 ----
+    // ---- Decimals and Commas vs. Decimal Points ----
 
     [Fact]
     public void TryEvaluate_DecimalPoint()
@@ -152,7 +152,7 @@ public class BeeXExpressionTests
         value.Should().Be(4);
     }
 
-    // ---- 一元正负号 ----
+    // ---- Plus and Minus Signs ----
 
     [Fact]
     public void TryEvaluate_UnaryMinus()
@@ -176,7 +176,7 @@ public class BeeXExpressionTests
         value.Should().Be(3);
     }
 
-    // ---- 浮点精度 ----
+    // ---- Floating-Point Precision ----
 
     [Fact]
     public void TryEvaluate_FractionalDivision()
@@ -185,11 +185,11 @@ public class BeeXExpressionTests
         value.Should().Be(3.5);
     }
 
-    // ---- 隐式乘法（数字/括号紧邻左括号）----
+    // ---- Implicit Multiplication (Number/Parentheses Immediately Following the Left Parenthesis) ----
 
     [Theory]
     [InlineData("2(9*8)", 144)]        // 2 * 72
-    [InlineData("1+1/2(9*8)", 37)]     // 1 + (1/2)*72，左到右等优先级
+    [InlineData("1+1/2(9*8)", 37)]     // 1 + (1/2) * 72; left-to-right evaluation with equal precedence
     [InlineData("(1+2)(3+4)", 21)]     // 3 * 7
     [InlineData("3(4)", 12)]
     public void TryEvaluate_ImplicitMultiplicationBeforeParen(string expr, double expected)
@@ -198,15 +198,15 @@ public class BeeXExpressionTests
         value.Should().Be(expected);
     }
 
-    // ---- 全角符号（数字/运算符/括号）与半角等效 ----
+    // ---- Full-width characters (numbers, operators, parentheses) are equivalent to half-width characters ----
 
     [Theory]
     [InlineData("１＋２", 3)]
     [InlineData("２×３", 6)]
     [InlineData("１０／４", 2.5)]
-    [InlineData("１＋１／２（９＊８）", 37)]   // 全角版用户案例
+    [InlineData("１＋１／２（９＊８）", 37)]   // Full-Width Version User Case Studies
     [InlineData("（１＋２）＊３", 9)]
-    [InlineData("１０－２", 8)]              // 全角减号 －
+    [InlineData("１０－２", 8)]              // Full-width hyphen －
     public void TryEvaluate_FullWidthSymbols_EquivalentToHalfWidth(string expr, double expected)
     {
         BeeXExpression.TryEvaluate(expr, out var value).Should().BeTrue();
@@ -216,7 +216,7 @@ public class BeeXExpressionTests
     [Fact]
     public void TryEvaluate_UnicodeMinusSign_Normalized()
     {
-        // U+2212 数学减号 −
+        // U+2212 Mathematical Minus Sign −
         BeeXExpression.TryEvaluate("5\u22123", out var value).Should().BeTrue();
         value.Should().Be(2);
     }

@@ -8,9 +8,9 @@ using Sdcb.PaddleInference;
 namespace BeeX.OCR;
 
 /// <summary>
-/// 用 Sdcb.PaddleInference 直接运行 PP-FormulaNet_plus-S 推理图，输出 LaTeX。
-/// 预处理对齐 PaddleX 的 UniMERNetImgDecode + UniMERNetTestTransform + LatexImageFormat：
-/// 裁掉留白 → 等比缩放进 384×384 → 黑边居中填充 → 灰度归一化 (x/255-0.7931)/0.1738 → [1,1,384,384]。
+/// Runs the PP-FormulaNet_plus-S inference graph directly with Sdcb.PaddleInference and outputs LaTeX.
+/// Preprocessing aligns with PaddleX's UniMERNetImgDecode + UniMERNetTestTransform + LatexImageFormat:
+/// crop whitespace -> scale proportionally into 384x384 -> center with black padding -> grayscale normalize (x/255-0.7931)/0.1738 -> [1,1,384,384].
 /// </summary>
 internal sealed class FormulaRecognitionService : IDisposable
 {
@@ -70,10 +70,10 @@ internal sealed class FormulaRecognitionService : IDisposable
             modelFile = Path.Combine(modelDirectory, "inference.pdmodel");
         }
 
-        // 公式模型为 PIR 导出图：memory_optimize_pass 会导致 CreatePredictor 失败，必须关闭。
-        // 只能跑在 openblas 运行时（BeeX_Formula 侧车）：带 oneDNN 的 MKL 运行时会在
-        // onednn_op.scale 抛 dnnl::error，且 oneDNN 替换无法通过开关/DeletePass/FLAGS/白名单禁用，
-        // ONNX 后端也无法解析 PIR 格式（四条路径均已实测排除）
+        // The formula model is a PIR-exported graph: memory_optimize_pass causes CreatePredictor to fail, so it must be disabled.
+        // It can only run on the openblas runtime (BeeX_Formula sidecar): the MKL runtime with oneDNN throws dnnl::error at
+        // onednn_op.scale, and the oneDNN substitution cannot be disabled via switches/DeletePass/FLAGS/allowlist;
+        // the ONNX backend also cannot parse the PIR format (all four paths have been empirically ruled out)
         PaddleConfig config = PaddleConfig.FromModelFiles(modelFile, Path.Combine(modelDirectory, "inference.pdiparams"));
         config.MemoryOptimized = false;
         config.CpuMathThreadCount = Environment.ProcessorCount;
@@ -103,7 +103,7 @@ internal sealed class FormulaRecognitionService : IDisposable
         };
     }
 
-    /// <summary>兜底：如导出图输出 logits（[batch, seq, vocab]），按步取 argmax。</summary>
+    /// <summary>Fallback: if the exported graph outputs logits ([batch, seq, vocab]), take argmax per step.</summary>
     private static long[] ArgMaxPerStep(float[] logits, int[] shape)
     {
         if (shape.Length < 3)
@@ -150,7 +150,7 @@ internal sealed class FormulaRecognitionService : IDisposable
 
         using (Graphics graphics = Graphics.FromImage(canvas))
         {
-            // ImageOps.expand 的默认填充为 0（黑），与训练侧保持一致
+            // ImageOps.expand defaults to 0 (black) padding, consistent with the training side
             graphics.Clear(Color.Black);
             graphics.CompositingQuality = CompositingQuality.HighQuality;
             graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
@@ -170,7 +170,7 @@ internal sealed class FormulaRecognitionService : IDisposable
         return converted;
     }
 
-    /// <summary>对齐 crop_margin：灰度拉伸后找出低于 200 的内容像素包围盒。</summary>
+    /// <summary>Aligns crop_margin: after grayscale stretching, find the bounding box of content pixels below 200.</summary>
     private static Rectangle FindContentBounds(Bitmap bitmap)
     {
         Rectangle full = new(0, 0, bitmap.Width, bitmap.Height);
@@ -257,7 +257,7 @@ internal sealed class FormulaRecognitionService : IDisposable
                 for (int x = 0; x < InputSize; x++)
                 {
                     int offset = row + x * 4;
-                    // cv2 RGB2GRAY 权重
+                    // cv2 RGB2GRAY weights
                     double gray = (pixels[offset + 2] * 0.299 + pixels[offset + 1] * 0.587 + pixels[offset] * 0.114) / 255.0;
                     tensor[y * InputSize + x] = (float)((gray - NormalizeMean) / NormalizeStd);
                 }

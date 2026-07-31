@@ -3,45 +3,45 @@ using BeeXCleaner.Models;
 namespace BeeXCleaner.Services;
 
 /// <summary>
-/// 由主窗口实现，供 ViewModel 触发对话框与需要 UI 交互的流程。
+/// Implemented in the main window, it allows the ViewModel to trigger dialog boxes and handle processes that require UI interaction.
 /// </summary>
 public interface IUiService
 {
-    /// <summary>普通确认框，返回 true 表示用户同意。</summary>
+    /// <summary>Standard confirmation dialog; returning `true` indicates the user's consent.</summary>
     bool Confirm(string message, string title = "确认");
 
-    /// <summary>危险操作确认框（红色警告图标）。</summary>
+    /// <summary>Hazardous Operation Confirmation Dialog Box (red warning icon).</summary>
     bool ConfirmDanger(string message, string title = "警告");
 
-    /// <summary>信息提示框。</summary>
+    /// <summary>Information dialog box. </summary>
     void Alert(string message, string title = "提示");
 
-    /// <summary>错误提示框。</summary>
+    /// <summary>Error message box.</summary>
     void ShowError(string message, string title = "错误");
 
     /// <summary>
-    /// 打开残留清理窗口（模态）。窗口内部自行扫描并让用户勾选清理。
+    /// Open the Residual Cleanup window (modal). The window automatically scans its contents and allows the user to select items to clean up.
     /// </summary>
     void CleanResiduals(IReadOnlyList<InstalledProgram> programs);
 
-    /// <summary>打开程序详情窗口。</summary>
+    /// <summary> Opens the program details window. </summary>
     void ShowDetails(InstalledProgram program);
 
-    /// <summary>打开遗留扫描窗口（清理已卸载软件的残留）。</summary>
+    /// <summary>Open the Residual Scan window (to clean up remnants of uninstalled software).</summary>
     void ScanOrphans();
 
-    /// <summary>打开空间深度擦除窗口（覆盖可用空间，使已删除文件不可恢复）。</summary>
+    /// <summary>Opens the Deep Erase Free Space window (overwrites free space to make deleted files unrecoverable).</summary>
     void ShowWipe();
 
-    /// <summary>打开快速删除窗口（选择任意文件/文件夹删除，可选安全擦除）。</summary>
+    /// <summary>Open the Quick Delete window (select any files or folders to delete; secure erasure is optional).</summary>
     void ShowQuickDelete();
 
-    /// <summary>显示结构化清理结果窗口（成功/失败/重启后删/释放空间/备份/日志）。</summary>
+    /// <summary>Displays the window showing the results of the structured cleanup (Success/Failure/Delete after restart/Free up space/Backup/Log).</summary>
     void ShowResult(ResidualCleanResult result, string title = "清理完成");
 
-    /// <summary>打开备份恢复窗口（工具箱）。</summary>
+    /// <summary>Open the Backup and Restore window (Toolbox). </summary>
     void ShowBackupRestore();
 
-    /// <summary>打开清理历史窗口（工具箱）。</summary>
+    /// <summary>Open the Clear History window (Toolbox). </summary>
     void ShowCleanupHistory();
 }

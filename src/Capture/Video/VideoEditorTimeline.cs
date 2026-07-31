@@ -9,7 +9,7 @@ using Point=System.Windows.Point;
 
 namespace BeeX.DeskNest;
 
-/// <summary>剪輯器膠片時間軸：幀縮圖鋪滿、滾輪縮放、播放頭拖動/分割、兩端修剪把手。</summary>
+/// <summary>Editor Film Timeline: Full-screen thumbnails, scroll wheel zoom, playhead drag/split, and trim handles at both ends. </summary>
 public sealed partial class VideoEditorWindow
 {
     const double StripLeft=12;

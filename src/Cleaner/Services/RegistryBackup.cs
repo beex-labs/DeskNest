@@ -5,14 +5,14 @@ using BeeXCleaner.Infrastructure;
 namespace BeeXCleaner.Services;
 
 /// <summary>
-/// 删除注册表前用 reg.exe 逐项导出 .reg 备份，便于异常时从“备份恢复”还原。
-/// 删除某个注册表值时会备份其所在整个键（reg.exe 无法只导出单个值）。
+/// Before deleting the registry, use reg.exe to export a .reg backup entry by entry, so you can restore it from the backup in case of an issue.
+/// When you delete a registry value, the entire key it belongs to is backed up (reg.exe cannot export a single value).
 /// </summary>
 public static class RegistryBackup
 {
     /// <summary>
-    /// 导出注册表键到会话备份目录，返回 .reg 文件路径；失败返回 null。
-    /// <paramref name="fullKeyPath"/> 形如 HKEY_LOCAL_MACHINE\SOFTWARE\...。
+    /// Exports the registry key to the session backup directory and returns the path to the .reg file; returns null on failure.
+    /// <paramref name="fullKeyPath"/> in the form of HKEY_LOCAL_MACHINE\SOFTWARE\....
     /// </summary>
     public static string? Export(string fullKeyPath, string backupFolder)
     {
@@ -36,12 +36,12 @@ public static class RegistryBackup
 
             using var proc = Process.Start(psi);
             if (proc is null) return null;
-            // 重定向后必须持续消费两路输出：否则子进程输出超过管道缓冲会阻塞，被 15s 超时误杀成“假失败”
+            // After redirection, both outputs must be continuously consumed; otherwise, if the child process's output exceeds the pipe buffer, it will block and be erroneously terminated by the 15-second timeout, resulting in a "false failure."
             _ = proc.StandardOutput.ReadToEndAsync();
             _ = proc.StandardError.ReadToEndAsync();
             if (!proc.WaitForExit(15000))
             {
-                // 超时：结束悬挂的 reg.exe，避免进程泄漏与后续 ExitCode 访问抛异常
+                // Timeout: Terminate the hung reg.exe process to prevent process leaks and subsequent exceptions when accessing ExitCode
                 try { proc.Kill(entireProcessTree: true); } catch { }
                 AppLogger.Warn($"注册表导出超时(15s): {fullKeyPath}");
                 return null;
@@ -50,7 +50,7 @@ public static class RegistryBackup
             if (proc.ExitCode == 0 && File.Exists(filePath))
                 return filePath;
 
-            // 键不存在或导出失败：不算致命（可能已被卸载器删掉），仅记录。
+            // Key does not exist or export failed: Not critical (may have been deleted by the uninstaller); simply logged.
             AppLogger.Warn($"注册表导出返回码 {proc.ExitCode}: {fullKeyPath}");
             return null;
         }
@@ -61,7 +61,7 @@ public static class RegistryBackup
         }
     }
 
-    /// <summary>把完整根名转换为 reg.exe 接受的缩写根（HKLM/HKCU）。不支持则返回 null。</summary>
+    /// <summary>Converts a full root name to a shorthand root (HKLM/HKCU) accepted by reg.exe. Returns null if not supported. </summary>
     private static string? ToRegExeKey(string fullPath)
     {
         const string hklm = "HKEY_LOCAL_MACHINE";
@@ -78,7 +78,7 @@ public static class RegistryBackup
         var invalid = Path.GetInvalidFileNameChars();
         var chars = fullPath.Select(c => invalid.Contains(c) || c == ' ' ? '_' : c).ToArray();
         var name = new string(chars).Trim('_');
-        // 文件名过长时截断（保留尾部更有辨识度的子键名）
+        // Truncate file names that are too long (retaining the more distinctive subkey names at the end)
         if (name.Length > 120) name = name[^120..];
         return name.Length == 0 ? "registry" : name;
     }

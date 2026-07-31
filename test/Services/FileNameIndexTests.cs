@@ -8,7 +8,7 @@ public class FileNameIndexTests
 {
     static FileNameIndex BuildSample()
     {
-        // 模擬 C:\Users\dev\Docs\report.pdf 等層級（FRN 任意取值，父鏈成立即可）
+        // Simulate a directory structure such as C:\Users\dev\Docs\report.pdf (where FRN can be any value, as long as the parent-child relationship holds).
         var index = new FileNameIndex('c');
         index.Set(10, 0, "Users", isDir: true);
         index.Set(20, 10, "dev", isDir: true);
@@ -45,7 +45,7 @@ public class FileNameIndexTests
         var hits = new List<FileHit>();
         index.SearchInto("report", hits, 10);
         hits = [.. hits.OrderByDescending(h => h.Score)];
-        // 完整命中 "report"（目錄）得分最高；"Report Final.docx" 前綴優於無前綴
+        // Exact matches for "report" (directory) score the highest; the "Report Final.docx" prefix outperforms no prefix.
         hits[0].Name.Should().Be("report");
         hits[0].IsDirectory.Should().BeTrue();
     }
@@ -83,7 +83,7 @@ public class FileNameIndexTests
     public void Set_RenameUpdatesNameAndParent()
     {
         var index = BuildSample();
-        // 模擬 USN RENAME_NEW_NAME：同 FRN 換名字換父目錄（移動 + 改名）
+        // Simulates USN RENAME_NEW_NAME: Same as FRN—rename and change parent directory (move + rename)
         index.Set(40, 20, "summary.pdf", isDir: false);
         index.ResolvePath(40).Should().Be(@"C:\Users\dev\summary.pdf");
         var hits = new List<FileHit>();
@@ -95,7 +95,7 @@ public class FileNameIndexTests
     public void ResolvePath_OrphanParentFallsBackToRoot()
     {
         var index = new FileNameIndex('d');
-        index.Set(99, 12345, "lonely.txt", isDir: false); // 父 FRN 不在索引中（頂層項的父即卷根）
+        index.Set(99, 12345, "lonely.txt", isDir: false); // The parent FRN is not in the index (the parent of a top-level item is the volume root)
         index.ResolvePath(99).Should().Be(@"D:\lonely.txt");
     }
 

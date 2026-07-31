@@ -17,8 +17,8 @@ using IoPath=System.IO.Path;
 namespace BeeX.DeskNest;
 
 /// <summary>
-/// 區域錄屏控制條：從截圖框選後啟動。影片用自抓幀管線（GDI BitBlt→ffmpeg rawvideo 管道）錄製，
-/// 支持 FPS 選擇、開始倒計時、暫停/繼續；聲音（系統+麥克風）用 WASAPI 採集，停止時 ffmpeg 合成 MP4 或轉 GIF。
+/// Regional Screen Recording Toolbar: Activated after selecting the screenshot area. Videos are recorded using the custom frame-capture pipeline (GDI BitBlt → ffmpeg rawvideo pipeline),
+/// Supports FPS selection, starting a countdown, and pausing/resuming; audio (system + microphone) is captured using WASAPI, and when stopped, ffmpeg is used to encode the file as an MP4 or convert it to a GIF.
 /// </summary>
 public sealed class RecordingController : Window
 {
@@ -46,7 +46,7 @@ public sealed class RecordingController : Window
     bool useGif;
     bool finished;
     bool paused;
-    // 設定頁可改的默認值（由 DeskNestService 同步）；工具條内仍可單次循環切換
+    // Default values that can be changed on the settings page (synchronized by DeskNestService); you can still cycle through options one at a time within the toolbar
     public static int DefaultFps=30;
     public static int DefaultCountdownSec;
     int fps=FpsList.Contains(DefaultFps)?DefaultFps:30;
@@ -80,13 +80,13 @@ public sealed class RecordingController : Window
 
     void BuildUi()
     {
-        // 預備態
+        // Pre-state
         var startBtn=Btn("● "+L("開始錄製"),new SolidColorBrush(Color.FromRgb(239,68,68)),Begin);
         fpsBtn=Btn($"{fps} FPS",new SolidColorBrush(Color.FromArgb(90,255,255,255)),CycleFps);
         formatBtn=Btn("MP4",new SolidColorBrush(Color.FromArgb(90,255,255,255)),ToggleFormat);
         delayBtn=Btn(L("延遲")+$":{countdownSec}s",new SolidColorBrush(Color.FromArgb(90,255,255,255)),CycleDelay);
         var cancelBtn=Btn("✕ "+L("取消"),new SolidColorBrush(Color.FromArgb(90,255,255,255)),()=>Cancel());
-        // 完整剪輯器（VideoEditorWindow）暫不開放；勾選後錄製完成打開簡易剪輯工具條（QuickTrimWindow）。
+        // The full editor (VideoEditorWindow) is currently unavailable; check this box to open the Quick Trim toolbar (QuickTrimWindow) after recording is complete.
         editorChk=new System.Windows.Controls.CheckBox{Content=new TextBlock{Text=L("錄製後編輯"),Foreground=Brushes.White,VerticalAlignment=VerticalAlignment.Center},Foreground=Brushes.White,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(8,0,6,0),IsChecked=false};
         editorChk.Checked+=(_,_)=>openEditorAfter=true;
         editorChk.Unchecked+=(_,_)=>openEditorAfter=false;
@@ -94,7 +94,7 @@ public sealed class RecordingController : Window
         prepRow.Children.Add(startBtn);prepRow.Children.Add(fpsBtn);prepRow.Children.Add(formatBtn);prepRow.Children.Add(delayBtn);prepRow.Children.Add(editorChk);prepRow.Children.Add(cancelBtn);
         prepPanel=Bar(prepRow);
 
-        // 錄製態
+        // Recording Mode
         pauseBtn=Btn("⏸ "+L("暫停"),new SolidColorBrush(Color.FromArgb(90,255,255,255)),TogglePause);
         var stopBtn=Btn("■ "+L("停止"),new SolidColorBrush(Color.FromRgb(239,68,68)),()=>Stop());
         var recRow=new StackPanel{Orientation=Orientation.Horizontal};
@@ -164,7 +164,7 @@ public sealed class RecordingController : Window
         SelectRecTool(RecordTool.None);
     }
 
-    // 錄製中拖動「移動」選框：用絕對光標位移（避免窗口跟隨產生反饋抖動），同步紅框/標注層/抓幀 region。
+    // Drag the "Move" selection box while recording: Use absolute cursor positioning (to avoid feedback jitter caused by the window following the cursor), and synchronize the red box, annotation layer, and frame selection region.
     void OnRegionMoved(double dxDiu,double dyDiu)
     {
         double vsL=SystemParameters.VirtualScreenLeft,vsT=SystemParameters.VirtualScreenTop,vsW=SystemParameters.VirtualScreenWidth,vsH=SystemParameters.VirtualScreenHeight;
@@ -279,7 +279,7 @@ public sealed class RecordingController : Window
     {
         if(!FfmpegService.IsAvailable)
         {
-            // ffmpeg 不再內置：缺失時彈下載對話框，裝好後直接繼續錄製流程
+            // ffmpeg is no longer included by default: If it's missing, a download dialog box will appear; once installed, the recording process will continue immediately.
             if(!FfmpegInstallerService.ShowInstallDialog(language))return;
         }
         if(pw<2||ph<2){Cancel();return;}
@@ -357,7 +357,7 @@ public sealed class RecordingController : Window
                 {
                     if(openEditorAfter&&outPath!.EndsWith(".mp4",StringComparison.OrdinalIgnoreCase))
                     {
-                        // 打開簡易剪輯工具條（完整剪輯器 VideoEditorWindow 保留代碼但不從此入口打開）
+                        // Open the Simple Editor toolbar (the full-featured VideoEditorWindow retains the code but is not opened from this entry point)
                         try{new QuickTrimWindow(outPath,diu,language).Show();}
                         catch{try{Process.Start(new ProcessStartInfo("explorer.exe",$"/select,\"{outPath}\""){UseShellExecute=true});}catch{}}
                     }
@@ -374,7 +374,7 @@ public sealed class RecordingController : Window
     string? Finalize(string? sys,string? mic)
     {
         if(!File.Exists(tempVideo)||new FileInfo(tempVideo).Length<1024)return null;
-        // 錄屏統一落到 BeeX 根目錄 Recordings，不再從截圖目錄父級推導
+        // Screen recordings are now all saved in the "Recordings" folder within the BeeX root directory; they are no longer derived from the parent directory of the screenshots folder.
         var recordDir=BeeXPaths.RecordingsDir;
         Directory.CreateDirectory(recordDir);
         var stamp=DateTime.Now.ToString("yyyyMMdd_HHmmss");

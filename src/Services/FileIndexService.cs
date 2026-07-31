@@ -5,13 +5,13 @@ using Microsoft.Win32.SafeHandles;
 
 namespace BeeX.DeskNest;
 
-/// <summary>單個文件命中結果：名稱、完整路徑、是否目錄與匹配得分（越大越靠前）。</summary>
+/// <summary>A single file match: name, full path, whether it is a directory, and the match score (higher ranks first).</summary>
 public readonly record struct FileHit(string Name, string FullPath, bool IsDirectory, int Score);
 
 /// <summary>
-/// 單卷純內存文件名索引：FRN →（父目錄 FRN、名稱、是否目錄）。
-/// 複刻 Everything 原理的存儲層——路徑不落地，查詢時沿父鏈拼裝；讀寫鎖保證 USN 增量更新與搜索並發安全。
-/// 不含任何 Win32 依賴，可直接單元測試。
+/// In-memory file-name index for one volume: FRN -&gt; (parent FRN, name, is-directory).
+/// Paths are not stored; they are rebuilt by walking the parent chain on query. A reader/writer lock keeps
+/// incremental updates and searches thread-safe. Contains no Win32 dependency, so it is directly unit-testable.
 /// </summary>
 public sealed class FileNameIndex
 {
@@ -47,7 +47,7 @@ public sealed class FileNameIndex
 
     string ResolveNoLock(ulong frn)
     {
-        // 沿父 FRN 鏈向上拼路徑；深度上限防環（NTFS 正常目錄樹不會超過 64 層）
+        // Walk up the parent-FRN chain to build the path; depth limit guards against cycles (a normal directory tree stays well under 64 levels).
         var parts = new List<string>(8);
         var current = frn; var depth = 0;
         while (depth++ < 64 && entries.TryGetValue(current, out var e)) { parts.Add(e.Name); current = e.Parent; }
@@ -55,7 +55,7 @@ public sealed class FileNameIndex
         return root + string.Join('\\', parts);
     }
 
-    /// <summary>空格分詞 AND 匹配（不區分大小寫），完整命中 &gt; 前綴 &gt; 子串，短名優先；結果追加進 results。</summary>
+    /// <summary>Space-tokenized AND match (case-insensitive); ranks exact &gt; prefix &gt; substring, shorter names first; results are appended to <paramref name="results"/>.</summary>
     public void SearchInto(string query, List<FileHit> results, int limit)
     {
         var tokens = query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -89,10 +89,10 @@ public sealed class FileNameIndex
 }
 
 /// <summary>
-/// 自研全盤文件索引服務（Everything 原理復刻，不依賴 Everything 軟體/SDK）：
-/// 每個 NTFS 固定卷直接枚舉 MFT（FSCTL_ENUM_USN_DATA）秒級建立文件名索引，
-/// 再由後台線程監聽 USN Journal（FSCTL_READ_USN_JOURNAL）實時增量更新。
-/// 打開卷句柄需要管理員權限——主程式 manifest 已設 requireAdministrator。
+/// Whole-disk file-name index service: for each fixed NTFS volume it enumerates the MFT
+/// (FSCTL_ENUM_USN_DATA) to build the file-name index in seconds, then a background thread
+/// watches the USN Journal (FSCTL_READ_USN_JOURNAL) for real-time incremental updates.
+/// Opening a volume handle requires administrator rights (the app manifest sets requireAdministrator).
 /// </summary>
 public sealed class FileIndexService : IDisposable
 {
@@ -100,9 +100,9 @@ public sealed class FileIndexService : IDisposable
     readonly object sync = new();
     bool started, disposed;
 
-    /// <summary>至少一個卷成功打開（未提權/無 NTFS 卷時為 false，調用方應降級提示）。</summary>
+    /// <summary>True when at least one volume opened successfully (false without elevation or NTFS volumes; callers should fall back).</summary>
     public bool Available { get { lock (sync) return volumes.Count > 0; } }
-    /// <summary>全部卷完成首次 MFT 枚舉，可提供完整結果。</summary>
+    /// <summary>True when every volume has finished its first MFT enumeration and can return complete results.</summary>
     public bool Ready { get { lock (sync) return started && volumes.Count > 0 && volumes.All(v => v.Ready); } }
     public int TotalCount { get { lock (sync) return volumes.Sum(v => v.Index.Count); } }
 
@@ -146,7 +146,7 @@ public sealed class FileIndexService : IDisposable
         }
     }
 
-    /// <summary>單卷索引器：打開卷句柄 → 查詢/創建 USN Journal → 枚舉 MFT → 循環讀取 Journal 增量。</summary>
+    /// <summary>Per-volume indexer: open the volume handle -&gt; query/create the USN Journal -&gt; enumerate the MFT -&gt; loop reading Journal increments.</summary>
     sealed class VolumeIndexer : IDisposable
     {
         public FileNameIndex Index { get; }
@@ -184,7 +184,7 @@ public sealed class FileIndexService : IDisposable
             if (!DeviceIoControl(handle, FSCTL_QUERY_USN_JOURNAL, IntPtr.Zero, 0, out USN_JOURNAL_DATA_V0 data, Marshal.SizeOf<USN_JOURNAL_DATA_V0>(), out _, IntPtr.Zero))
             {
                 if (Marshal.GetLastWin32Error() != ERROR_JOURNAL_NOT_ACTIVE) return false;
-                // 卷上尚未啟用 USN Journal：創建一個（32MB 上限，NTFS 標準做法）再重查
+                // The volume has no active USN Journal yet: create one (32MB cap) and query again.
                 var create = new CREATE_USN_JOURNAL_DATA { MaximumSize = 0x2000000, AllocationDelta = 0x400000 };
                 if (!DeviceIoControl(handle, FSCTL_CREATE_USN_JOURNAL, ref create, Marshal.SizeOf<CREATE_USN_JOURNAL_DATA>(), IntPtr.Zero, 0, out _, IntPtr.Zero)) return false;
                 if (!DeviceIoControl(handle, FSCTL_QUERY_USN_JOURNAL, IntPtr.Zero, 0, out data, Marshal.SizeOf<USN_JOURNAL_DATA_V0>(), out _, IntPtr.Zero)) return false;
@@ -202,7 +202,7 @@ public sealed class FileIndexService : IDisposable
             while (!closing)
             {
                 var input = new MFT_ENUM_DATA_V0 { StartFileReferenceNumber = start, LowUsn = 0, HighUsn = long.MaxValue };
-                if (!DeviceIoControl(handle, FSCTL_ENUM_USN_DATA, ref input, Marshal.SizeOf<MFT_ENUM_DATA_V0>(), buffer, buffer.Length, out var bytes, IntPtr.Zero)) break; // ERROR_HANDLE_EOF＝枚舉完成
+                if (!DeviceIoControl(handle, FSCTL_ENUM_USN_DATA, ref input, Marshal.SizeOf<MFT_ENUM_DATA_V0>(), buffer, buffer.Length, out var bytes, IntPtr.Zero)) break; // ERROR_HANDLE_EOF = enumeration complete
                 if (bytes < 8) break;
                 start = BitConverter.ToUInt64(buffer, 0);
                 ApplyRecords(buffer, 8, bytes, fromEnum: true);
@@ -215,12 +215,12 @@ public sealed class FileIndexService : IDisposable
             var buffer = new byte[256 * 1024];
             while (!closing)
             {
-                // BytesToWaitFor=1：阻塞直到卷上有新變更；Dispose 關閉句柄會使調用失敗從而退出線程
+                // BytesToWaitFor=1: block until the volume has a new change; disposing the handle makes the call fail so the thread exits.
                 var input = new READ_USN_JOURNAL_DATA_V0 { StartUsn = nextUsn, ReasonMask = REASON_MASK, ReturnOnlyOnClose = 0, Timeout = 0, BytesToWaitFor = 1, UsnJournalID = journalId };
                 if (!DeviceIoControl(handle, FSCTL_READ_USN_JOURNAL, ref input, Marshal.SizeOf<READ_USN_JOURNAL_DATA_V0>(), buffer, buffer.Length, out var bytes, IntPtr.Zero))
                 {
                     if (closing) return;
-                    // Journal 被重建/回繞（如 chkdsk、日誌溢出）：重新拿 ID 與起點後繼續
+                    // The Journal was rebuilt or wrapped (e.g. chkdsk, log overflow): re-fetch the ID and start point, then continue.
                     if (!QueryJournal()) return;
                     continue;
                 }
@@ -232,7 +232,7 @@ public sealed class FileIndexService : IDisposable
 
         void ApplyRecords(byte[] buffer, int offset, int total, bool fromEnum)
         {
-            // USN_RECORD_V2 布局：0 RecordLength,8 FRN,16 ParentFRN,40 Reason,52 FileAttributes,56 NameLength,58 NameOffset,60 Name
+            // USN_RECORD_V2 layout: 0 RecordLength, 8 FRN, 16 ParentFRN, 40 Reason, 52 FileAttributes, 56 NameLength, 58 NameOffset, 60 Name
             var pos = offset;
             while (pos + 60 <= total)
             {
@@ -247,7 +247,7 @@ public sealed class FileIndexService : IDisposable
                 if (pos + nameOffset + nameLength <= total && nameLength > 0)
                 {
                     var name = Encoding.Unicode.GetString(buffer, pos + nameOffset, nameLength);
-                    if (name.Length > 0 && name[0] != '$') // 跳過 $MFT 等 NTFS 元文件
+                    if (name.Length > 0 && name[0] != '$') // skip $MFT and other NTFS metadata files
                     {
                         var isDir = (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
                         if (fromEnum) Index.Set(frn, parent, name, isDir);
@@ -262,7 +262,7 @@ public sealed class FileIndexService : IDisposable
         public void Dispose()
         {
             closing = true;
-            try { handle?.Dispose(); } catch { } // 關閉句柄解除 ReadJournalLoop 的阻塞
+            try { handle?.Dispose(); } catch { } // closing the handle unblocks ReadJournalLoop
             handle = null;
         }
 

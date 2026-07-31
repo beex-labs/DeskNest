@@ -7,17 +7,17 @@ using Microsoft.Win32;
 
 namespace BeeXCleaner.Services;
 
-/// <summary>扫描模式：标准（高置信，默认勾选）/ 深度（更多位置，低置信默认不勾选）。</summary>
+/// <summary>Scan Mode: Standard (High Confidence, checked by default) / Deep (More Locations, Low Confidence, unchecked by default). </summary>
 public enum ScanMode { Standard, Deep }
 
 /// <summary>
-/// 扫描并清理某个程序卸载后残留的文件夹、文件、注册表项、快捷方式，
-/// 以达到“彻底清除本机所有记录”的目的。
-/// 匹配策略保守，并要求用户逐项确认以避免误删。
+/// Scan and clean up folders, files, registry entries, and shortcuts left behind after uninstalling a program,
+/// To "completely erase all records from this computer."
+/// The matching strategy is conservative and requires users to confirm each item individually to prevent accidental deletion.
 /// </summary>
 public sealed partial class ResidualScanner
 {
-    // 视为通用/共享目录或键名，不作为整体匹配目标，避免误删
+    // Treat as a general/shared directory or key name; do not treat as a whole for matching purposes to avoid accidental deletion
     private static readonly HashSet<string> Stopwords = new(StringComparer.OrdinalIgnoreCase)
     {
         "inc","llc","ltd","co","corp","corporation","company","gmbh","limited",
@@ -33,10 +33,10 @@ public sealed partial class ResidualScanner
     {
         "Microsoft","Windows","Classes","Wow6432Node","Policies","Clients",
         "RegisteredApplications","Intel","ODBC","Khronos","Nvidia","AMD",
-        "Google" // 顶层 Google 键常被多产品共享，仅下钻匹配，不整体删除
+        "Google" // The top-level "Google" key is often shared across multiple products; only drill-down matches are affected—it is not deleted entirely.
     };
 
-    // 健壮枚举选项:跳过无权限目录与重解析点(junction/软链接)，避免抛异常或死循环
+    // Robust enumeration options: Skip directories without access permissions and junction points (junction points/symbolic links) to avoid throwing exceptions or entering an infinite loop
     private static readonly EnumerationOptions RecurseSafe = new()
     {
         IgnoreInaccessible = true,
@@ -51,7 +51,7 @@ public sealed partial class ResidualScanner
         AttributesToSkip = FileAttributes.ReparsePoint
     };
 
-    /// <summary>扫描指定程序的残留记录。</summary>
+    /// <summary>Scans for residual records from specified programs.</summary>
     public List<ResidualItem> Scan(InstalledProgram program, ScanMode mode = ScanMode.Standard)
     {
         var results = new List<ResidualItem>();
@@ -60,38 +60,38 @@ public sealed partial class ResidualScanner
         var publisherCompact = NormalizeCompact(StripPublisher(program.Publisher));
         var publisherTokens = ExtractPublisherTokens(program.Publisher);
 
-        // 产品特征键：剔除发行商词，仅保留“字母词”与“4 位年份”，丢弃非年份的纯数字与点分版本号。
-        // 例：Autodesk 3ds Max 2024 → 3dsmax2024；Autodesk Revit 2018.3.3 → revit2018。
-        // 保留年份可区分版本（不误删仍安装的其它年版），去掉发行商词可避免命中同厂其它产品。
+        // Product Key Features: Excludes publisher terms, retaining only "alphabetic terms" and "4-digit years"; discards non-year-related numeric values and decimal version numbers.
+        // Example: Autodesk 3ds Max 2024 → 3dsmax2024; Autodesk Revit 2018.3.3 → revit2018.
+        // Including the year helps distinguish between versions (so you don’t accidentally delete other versions of the same software that are still installed), and removing the publisher’s name helps avoid matching other products from the same company.
         var productKey = BuildProductKey(program.DisplayName, publisherTokens);
-        // 版本无关基名（进一步去掉年份）：如 3dsmax / revit，用于发现被多版本共享的
-        // “版本无关注册表键/目录”（如 HKCU\Software\Autodesk\3dsMax），默认不勾选交用户确认。
+        // Version-independent base names (with the year removed): such as 3dsmax / revit, used to identify names shared across multiple versions
+        // "Version has no registry keys/directories" (e.g., HKCU\Software\Autodesk\3dsMax); by default, this option is unchecked and requires user confirmation.
         var productBase = BuildProductKey(program.DisplayName, publisherTokens, keepYears: false);
 
         var ctx = new MatchContext(productKey, productBase, publisherCompact, mode == ScanMode.Deep);
 
-        // 1) 安装目录本身（最强信号）。除注册表 InstallLocation 外，还从 DisplayIcon /
-        //    卸载命令解析出 exe 所在目录——大量程序并不写 InstallLocation，靠这些才能定位到
-        //    真实安装目录。仍排除“发行商共享根目录”（如 C:\Program Files\Autodesk）避免误删同厂其它产品。
+        // 1) The installation directory itself (strongest signal). In addition to the InstallLocation registry key, it also retrieves information from DisplayIcon /
+        //    The uninstallation command identifies the directory where the EXE file is located—since many programs do not specify the `InstallLocation`, this is the only way to locate them.
+        //    Actual installation directory. The "publisher's shared root directory" (such as C:\Program Files\Autodesk) is still excluded to prevent accidental deletion of other products from the same vendor.
         AddOwnInstallDirs(program, publisherCompact, results, seen);
 
-        // 2) 文件系统常见位置。“我的文档”下的同名目录几乎总装着用户产出内容
-        //   （录像/存档等），不是程序残留的可靠信号，一律降为低置信且不默认勾选。
+        // 2) Common file system locations. The folder with the same name under “My Documents” almost always contains user-generated content.
+        //   (Recordings, archives, etc.)—which are not reliable signals of program remnants—are all downgraded to "low confidence" and are not checked by default.
         var docsRoot = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
         foreach (var root in GetFileRoots())
             ScanFileRoot(root, ctx, results, seen,
                 isUserDocs: !string.IsNullOrEmpty(docsRoot)
                             && string.Equals(root, docsRoot, StringComparison.OrdinalIgnoreCase));
 
-        // 3) 注册表
+        // 3) Registry
         ScanRegistryRoot(RegistryHive.CurrentUser, @"SOFTWARE", ctx, results, seen);
         ScanRegistryRoot(RegistryHive.LocalMachine, @"SOFTWARE", ctx, results, seen);
         ScanRegistryRoot(RegistryHive.LocalMachine, @"SOFTWARE\WOW6432Node", ctx, results, seen);
 
-        // 3b) App Paths（可执行文件路径注册）
+        // 3b) App Paths (Registration of Executable File Paths)
         ScanAppPaths(ctx, results, seen);
 
-        // 4) 快捷方式（开始菜单 + 桌面）
+        // 4) Shortcuts (Start Menu + Desktop)
         foreach (var sc in GetShortcutRoots())
             ScanShortcuts(sc, ctx, results, seen);
 
@@ -101,17 +101,17 @@ public sealed partial class ResidualScanner
             .ToList();
     }
 
-    /// <summary>执行清理（删除用户勾选的项）。委托给共享强制清理器（可选清理会话/结束进程）。</summary>
+    /// <summary>Perform cleanup (delete the items selected by the user). Delegate to the Shared Force Cleanup Tool (optional: clean up sessions/terminate processes).</summary>
     public ResidualCleanResult Clean(IEnumerable<ResidualItem> items, bool secureErase = false,
         CleanupSession? session = null, bool killProcesses = false)
         => ResidualCleaner.Clean(items, secureErase, session, killProcesses);
 
-    // ---------------- 安装目录定位（多信号） ----------------
+    // ---------------- Locating the Installation Directory (Multiple Signals) ----------------
 
     /// <summary>
-    /// 收集并加入该程序“自己的安装目录”。除注册表 InstallLocation 外，还从 DisplayIcon /
-    /// UninstallString / QuietUninstallString 解析出 exe 所在目录（大量程序不写 InstallLocation）。
-    /// 逐一施加安全护栏（网络盘/系统灾难性根目录/厂商共享根目录），并去重子目录后加入。
+    /// Collect and add them to the program's "own installation directory." In addition to the InstallLocation registry key, also from DisplayIcon /
+    /// UninstallString / QuietUninstallString determine the directory where the EXE file is located (many programs do not specify the InstallLocation).
+    /// Apply security barriers one by one (network drive/system root directory/vendor shared root directory), and add them after removing duplicate subdirectories.
     /// </summary>
     private static void AddOwnInstallDirs(InstalledProgram program, string publisherCompact,
         List<ResidualItem> results, HashSet<string> seen)
@@ -123,12 +123,12 @@ public sealed partial class ResidualScanner
             try { full = Path.GetFullPath(raw).TrimEnd('\\', '/'); }
             catch { continue; }
             if (full.Length < 4 || !Directory.Exists(full)) continue;
-            if (!UninstallService.IsSafeToDelete(full)) continue;     // 网络盘 / 系统灾难性根目录拦截
-            if (IsVendorRootFolder(full, publisherCompact)) continue; // 厂商共享根不整删
+            if (!UninstallService.IsSafeToDelete(full)) continue;     // Network Drive / System-Wide Root Directory Interception
+            if (IsVendorRootFolder(full, publisherCompact)) continue; // Do not delete the shared root directory for vendors
             dirs.Add(full);
         }
 
-        // 去重：若某目录是列表中另一目录的子目录，则丢弃（保留父目录即可）
+        // Remove duplicates: If a directory is a subdirectory of another directory in the list, discard it (only keep the parent directory).
         var kept = new List<string>();
         foreach (var d in dirs.Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(d => d.Length))
         {
@@ -139,7 +139,7 @@ public sealed partial class ResidualScanner
             AddFolder(results, seen, d, "安装目录");
     }
 
-    /// <summary>从 InstallLocation 与各类命令/图标路径中提取候选安装目录。</summary>
+    /// <summary>Extract candidate installation directories from the `InstallLocation` and the paths of various commands and icons.</summary>
     private static IEnumerable<string> CollectInstallDirCandidates(InstalledProgram p)
     {
         if (!string.IsNullOrWhiteSpace(p.InstallLocation))
@@ -155,7 +155,7 @@ public sealed partial class ResidualScanner
         if (fromQuiet is not null) yield return fromQuiet;
     }
 
-    /// <summary>解析（命令行或图标）中的 exe，返回其所在目录；裸名/相对路径返回 null。</summary>
+    /// <summary>Parses the "exe" in a command line or icon and returns the directory where it is located; returns null for bare names or relative paths. </summary>
     private static string? ExeDir(string? raw, bool isCommand)
     {
         if (string.IsNullOrWhiteSpace(raw)) return null;
@@ -168,7 +168,7 @@ public sealed partial class ResidualScanner
             var dir = Path.GetDirectoryName(Path.GetFullPath(expanded));
             if (string.IsNullOrEmpty(dir)) return null;
 
-            // 卸载器常单独放在 \uninstall 之类子目录，向上取到产品根目录以便完整清除
+            // Uninstallers are often placed in a separate subdirectory, such as \uninstall, and the path is traced back to the product's root directory to ensure complete removal.
             var leaf = Path.GetFileName(dir);
             if (GenericUninstallerDirs.Contains(leaf))
             {
@@ -180,13 +180,13 @@ public sealed partial class ResidualScanner
         catch { return null; }
     }
 
-    // 卸载器常见的独立子目录名——命中则向上取产品根
+    // Common standalone subdirectory names for uninstallers—if a match is found, go up to the product root
     private static readonly HashSet<string> GenericUninstallerDirs = new(StringComparer.OrdinalIgnoreCase)
     {
         "uninstall", "uninst", "uninstaller", "uninstallation", "uninstalldata", "uninst.exe"
     };
 
-    /// <summary>去掉 DisplayIcon 末尾的图标索引（如 "app.exe,0" → "app.exe"）。</summary>
+    /// <summary>Remove the icon index from the end of DisplayIcon (e.g., "app.exe,0" → "app.exe").</summary>
     private static string StripIconIndex(string? icon)
     {
         if (string.IsNullOrWhiteSpace(icon)) return string.Empty;
@@ -197,7 +197,7 @@ public sealed partial class ResidualScanner
         return s.Trim().Trim('"');
     }
 
-    // ---------------- 文件系统扫描 ----------------
+    // ---------------- File System Scan ----------------
 
     private static IEnumerable<string> GetFileRoots()
     {
@@ -234,7 +234,7 @@ public sealed partial class ResidualScanner
                 continue;
             }
 
-            // 目录名匹配发行商 → 下钻一层匹配产品（如 Publisher\Product）
+            // Match by catalog name to publisher → Drill down one level to match products (e.g., Publisher\Product)
             if (ctx.IsPublisher(name))
                 ScanPublisherChildren(dir, ctx, results, seen, isUserDocs);
         }
@@ -279,26 +279,26 @@ public sealed partial class ResidualScanner
         foreach (var f in SafeEnumerateFiles(dir, "*"))
         {
             try { total += new FileInfo(f).Length; }
-            catch { /* 忽略无法访问的文件 */ }
+            catch { /* Ignore files that cannot be accessed */ }
         }
         return total;
     }
 
-    /// <summary>递归安全枚举文件（跳过无权限目录与重解析点），在 try 内物化避免惰性异常。</summary>
+    /// <summary> Recursively and safely enumerate files (skipping directories without permissions and re-parsing points), and materialize them within the `try` block to avoid lazy exceptions. </summary>
     private static List<string> SafeEnumerateFiles(string root, string pattern)
     {
         try { return Directory.EnumerateFiles(root, pattern, RecurseSafe).ToList(); }
         catch { return new List<string>(); }
     }
 
-    /// <summary>安全枚举顶层子目录。</summary>
+    /// <summary>Safely enumerate top-level subdirectories.</summary>
     private static List<string> SafeEnumerateDirectories(string root)
     {
         try { return Directory.EnumerateDirectories(root, "*", TopSafe).ToList(); }
         catch { return new List<string>(); }
     }
 
-    // ---------------- 注册表扫描 ----------------
+    // ---------------- Registry Scan ----------------
 
     private void ScanRegistryRoot(RegistryHive hive, string subPath, MatchContext ctx,
         List<ResidualItem> results, HashSet<string> seen)
@@ -313,7 +313,7 @@ public sealed partial class ResidualScanner
             {
                 if (RegistryBlockKeys.Contains(name))
                 {
-                    // 共享顶层键：仅在其为发行商时下钻，不整体删除
+                    // Share top-level keys: Drill down only when they are publishers; do not delete them entirely
                     if (ctx.IsPublisher(name))
                         ScanRegistryChildren(hive, $@"{subPath}\{name}", ctx, results, seen);
                     continue;
@@ -349,7 +349,7 @@ public sealed partial class ResidualScanner
                     AddRegistry(results, seen, hive, $@"{subPath}\{name}", $"{m.reason}（发行商键内）", m.autoSelect, m.confidence);
             }
         }
-        catch { /* 忽略 */ }
+        catch { /* Ignore */ }
     }
 
     private static void AddRegistry(List<ResidualItem> results, HashSet<string> seen,
@@ -371,7 +371,7 @@ public sealed partial class ResidualScanner
         });
     }
 
-    /// <summary>扫描 App Paths（可执行文件注册项），匹配产品名的整键作为残留。</summary>
+    /// <summary>Scan App Paths (executable file entries) and match the entire key containing the product name as a residue. </summary>
     private void ScanAppPaths(MatchContext ctx, List<ResidualItem> results, HashSet<string> seen)
     {
         var locations = new (RegistryHive hive, string path)[]
@@ -403,7 +403,7 @@ public sealed partial class ResidualScanner
         }
     }
 
-    // ---------------- 快捷方式扫描 ----------------
+    // ---------------- Shortcut Scan ----------------
 
     private static IEnumerable<string> GetShortcutRoots()
     {
@@ -443,7 +443,7 @@ public sealed partial class ResidualScanner
         }
     }
 
-    // ---------------- 文本归一化 ----------------
+    // ---------------- Text Normalization ----------------
 
     private static string NormalizeCompact(string? s)
         => string.IsNullOrEmpty(s)
@@ -452,7 +452,7 @@ public sealed partial class ResidualScanner
 
     private static string StripName(string name)
     {
-        // 去掉版本号、括号内容、常见后缀
+        // Remove version numbers, content in parentheses, and common suffixes
         name = ParentheticalRegex().Replace(name, " ");
         name = VersionRegex().Replace(name, " ");
         return name.Trim();
@@ -473,7 +473,7 @@ public sealed partial class ResidualScanner
             .Distinct()
             .ToList();
 
-    /// <summary>提取发行商特征词（小写），用于从产品匹配中排除厂商名。</summary>
+    /// <summary>Extract publisher keywords (in lowercase) to exclude manufacturer names from product matches.</summary>
     private static HashSet<string> ExtractPublisherTokens(string? publisher)
     {
         var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -484,9 +484,9 @@ public sealed partial class ResidualScanner
     }
 
     /// <summary>
-    /// 构建产品特征键：去括注、剔除发行商词，仅保留“含字母的词”与（可选）“4 位年份”，
-    /// 丢弃非年份的纯数字与点分版本号（如 20.00 / 2018.3.3 的小版本段）。
-    /// keepYears=false 时进一步去掉年份，得到版本无关基名（如 3dsmax / revit）。
+    /// Constructing product feature keys: Remove parentheses and exclude publisher terms, retaining only “words containing letters” and (optionally) “4-digit years,”
+    /// Discard version numbers consisting solely of numbers without a year and those with a period and a decimal (such as 20.00 or 2018.3.3 for minor version segments).
+    /// When `keepYears=false`, the year is further removed to obtain a version-independent base name (such as 3dsmax / revit).
     /// </summary>
     private static string BuildProductKey(string displayName, HashSet<string> publisherTokens, bool keepYears = true)
     {
@@ -502,8 +502,8 @@ public sealed partial class ResidualScanner
         => t.Length == 4 && int.TryParse(t, out var y) && y is >= 1980 and <= 2099;
 
     /// <summary>
-    /// 判断某路径是否为“发行商共享根目录”（其叶子名等于发行商名，或为 Common/Shared 等共享目录）。
-    /// 这类目录下通常并存多个同厂产品，不能作为单个产品的安装目录整体删除。
+    /// Determine whether a given path is a “publisher shared root directory” (where the leaf name matches the publisher name, or is a shared directory such as Common/Shared).
+    /// These directories typically contain multiple products from the same manufacturer and cannot be deleted in their entirety as the installation directory for a single product.
     /// </summary>
     private static bool IsVendorRootFolder(string path, string publisherCompact)
     {
@@ -525,13 +525,13 @@ public sealed partial class ResidualScanner
     [GeneratedRegex(@"[^\p{L}\p{N}]+")]
     private static partial Regex TokenSplitRegex();
 
-    // 短名称软件白名单：名称过短（2-3 字符）但为知名软件，仅允许“精确相等”匹配（更严格，避免误伤）。
+    // Short-Name Software Whitelist: Software with very short names (2–3 characters) but that are well-known; only “exact matches” are allowed (a stricter rule to avoid false positives).
     private static readonly HashSet<string> ShortNameWhitelist = new(StringComparer.OrdinalIgnoreCase)
     {
         "qq","git","vlc","tim","wps","obs","gimp","npp"
     };
 
-    /// <summary>是否包含 CJK 统一表意文字（用于放宽中文短名的最小匹配长度）。</summary>
+    /// <summary>Whether CJK Unified Ideographs are included (used to relax the minimum match length for Chinese short names).</summary>
     private static bool HasCjk(string s)
     {
         foreach (var c in s)
@@ -539,7 +539,7 @@ public sealed partial class ResidualScanner
         return false;
     }
 
-    /// <summary>由用户手动指定目录构造残留项（低置信，默认不勾选）。</summary>
+    /// <summary>Manually specify a directory to generate residual items (low confidence; unchecked by default). </summary>
     public static ResidualItem CreateManualFolder(string path)
     {
         var full = Path.GetFullPath(path).TrimEnd('\\');
@@ -555,15 +555,15 @@ public sealed partial class ResidualScanner
         };
     }
 
-    /// <summary>由用户手动指定注册表完整路径构造残留项（低置信，默认不勾选）。</summary>
+    /// <summary>Manually specify the full registry path to create a residual entry (low confidence; unchecked by default). </summary>
     public static ResidualItem CreateManualRegistry(string fullPath)
     {
-        // 与 CreateManualFolder 同等归一化：去尾部反斜杠/斜杠方向/连续反斜杠，
-        // 否则同一键可被重复添加，删除时还会解析出空键名、备份文件名漂移。
+        // Normalization equivalent to CreateManualFolder: Remove trailing backslashes, forward slashes, and consecutive backslashes,
+        // Otherwise, the same key could be added multiple times, and when it is deleted, an empty key name might be parsed, causing the backup file name to drift.
         var normalized = fullPath.Trim().Replace('/', '\\').TrimEnd('\\');
         while (normalized.Contains(@"\\"))
             normalized = normalized.Replace(@"\\", @"\");
-        // 根级/系统关键位置不允许作为可删除项构造（整键删除会损坏系统或大量软件注册信息）。
+        // Root-level and system-critical locations must not be configured as deletable items (deleting an entire key would damage the system or corrupt a large amount of software registry information).
         if (IsProtectedRegistryRoot(normalized))
             throw new ArgumentException("该注册表路径为受保护的系统/软件根级位置，禁止作为可删除残留项。");
         return new()
@@ -577,7 +577,7 @@ public sealed partial class ResidualScanner
         };
     }
 
-    /// <summary>禁止手动添加/整键删除的注册表根级路径（删除会损坏系统或抹掉大量软件注册信息）。</summary>
+    /// <summary>Registry root-level paths that must not be manually added or deleted in their entirety (deleting them may damage the system or erase a large amount of software registry information).</summary>
     private static readonly HashSet<string> ProtectedRegistryRoots = new(StringComparer.OrdinalIgnoreCase)
     {
         @"HKEY_LOCAL_MACHINE",
@@ -607,10 +607,10 @@ public sealed partial class ResidualScanner
     };
 
     /// <summary>
-    /// 判断某注册表完整路径是否为“受保护的根级位置”（禁止手动添加/整键删除）。
-    /// 归一化大小写、斜杠方向、尾部反斜杠与连续反斜杠后与阻止清单比对；空路径视为受保护。
-    /// 除精确清单外，HKLM\SYSTEM 子树额外按深度阈值拦截：CurrentControlSet / ControlSet00x /
-    /// 其下的 Services 等浅层键整删会直接破坏系统启动配置，仅放行“具体服务键”及更深层级。
+    /// Determine whether a specific full registry path is a “protected root-level location” (where manual additions or deletion of entire keys are prohibited).
+    /// Compare the path after normalizing case, slash direction, trailing backslashes, and consecutive backslashes against the blocklist; empty paths are considered protected.
+    /// In addition to the precise list, the HKLM\SYSTEM subtree is further filtered based on depth thresholds: CurrentControlSet / ControlSet00x /
+    /// Modifying or deleting shallow-level keys such as "Services" will directly corrupt the system boot configuration; only "specific service keys" and deeper levels are permitted.
     /// </summary>
     public static bool IsProtectedRegistryRoot(string? fullPath)
     {
@@ -620,8 +620,8 @@ public sealed partial class ResidualScanner
             normalized = normalized.Replace(@"\\", @"\");
         if (ProtectedRegistryRoots.Contains(normalized)) return true;
 
-        // HKLM\SYSTEM 下深度 < 3 的键（如 CurrentControlSet、CurrentControlSet\Services）一律拒绝；
-        // 深度 3 即具体服务键（...\CurrentControlSet\Services\某服务）仍允许，服务清理依赖此级别。
+        // All keys under HKLM\SYSTEM at a depth of less than 3 (such as CurrentControlSet and CurrentControlSet\Services) are rejected;
+        // Level 3 (i.e., specific service keys such as ...\CurrentControlSet\Services\[Service Name] ) is still permitted; service cleanup relies on this level.
         const string systemPrefix = @"HKEY_LOCAL_MACHINE\SYSTEM\";
         if (normalized.StartsWith(systemPrefix, StringComparison.OrdinalIgnoreCase)
             && normalized[systemPrefix.Length..].Split('\\').Length < 3)
@@ -630,7 +630,7 @@ public sealed partial class ResidualScanner
         return false;
     }
 
-    /// <summary>匹配上下文与判定逻辑。</summary>
+    /// <summary>Matching context and decision logic. </summary>
     private sealed class MatchContext
     {
         private readonly string _productKey;
@@ -646,7 +646,7 @@ public sealed partial class ResidualScanner
             _productBase = productBase;
             _publisherCompact = publisherCompact;
             _deep = deep;
-            // 含中文时放宽最小匹配长度到 2（中文名通常很短）；纯 ASCII 仍要求 >= 4 以降低误报。
+            // When Chinese characters are present, the minimum match length is relaxed to 2 (since Chinese names are typically short); for pure ASCII, the minimum match length remains >= 4 to reduce false positives.
             _minLen = HasCjk(productKey) ? 2 : 4;
             _shortWhitelisted = productKey.Length is >= 2 and <= 3 && ShortNameWhitelist.Contains(productKey);
         }
@@ -656,21 +656,21 @@ public sealed partial class ResidualScanner
             var n = NormalizeCompact(rawName);
             if (n.Length == 0) return (false, "", ResidualConfidence.Low, false);
 
-            // 高置信：带版本前缀匹配（版本专属残留），默认勾选。
-            // 残留目录/键/快捷方式通常以产品名开头，用前缀可避免把“XXX for Revit”误当成 Revit。
+            // High Confidence: Matches with version prefixes (version-specific residues); checked by default.
+            // Residual folders, keys, and shortcuts typically begin with the product name; using a prefix can prevent "XXX for Revit" from being mistaken for Revit.
             if (_productKey.Length >= _minLen && n.StartsWith(_productKey, StringComparison.Ordinal))
                 return (true, "产品名匹配", ResidualConfidence.High, true);
 
-            // 中置信：短名称白名单“精确相等”（如 Git/VLC/QQ），默认勾选但更保守。
+            // Zhongzhixin: Short name whitelist "exact match" (e.g., Git/VLC/QQ); checked by default but more conservative.
             if (_shortWhitelisted && n == _productKey)
                 return (true, "短名称精确匹配", ResidualConfidence.Medium, true);
 
-            // 低置信：版本无关产品基名“精确相等”（如 3dsMax 键，可能被多版本共享）。
-            // 仅当产品名确实含版本(基名≠带版本键)时启用，默认不勾选，交用户确认，避免误删其它版本。
+            // Low Confidence: "Exact matches" for version-independent product base names (e.g., the "3dsMax" key, which may be shared across multiple versions).
+            // Enable this only when the product name actually includes a version (base name ≠ version-included key). By default, this option is unchecked and requires user confirmation to prevent accidental deletion of other versions.
             if (_productBase.Length >= _minLen && _productBase != _productKey && n == _productBase)
                 return (true, "版本无关键（可能与其它版本共享，请确认）", ResidualConfidence.Low, false);
 
-            // 深度扫描：名称“包含”产品特征（低置信，默认不勾选，交用户确认）。
+            // Deep Scan: Names that “include” product features (low confidence; unchecked by default; requires user confirmation).
             if (_deep && _productKey.Length >= _minLen && n.Contains(_productKey, StringComparison.Ordinal))
                 return (true, "深度扫描·名称包含产品特征（请确认）", ResidualConfidence.Low, false);
 

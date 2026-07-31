@@ -7,13 +7,13 @@ using Microsoft.Win32;
 namespace BeeXCleaner.Services;
 
 /// <summary>
-/// 扩展遗留扫描（第 8 章）：计划任务 / 服务 / PATH / 防火墙 / 文件关联。
-/// 统一判据：被引用的“本机本地可执行文件/目录确实不存在”才视为遗留。
-/// 这些类型删除风险高于普通残留，默认全部不勾选（仅展示与可选删除），交用户确认。
+/// Extended Legacy Scan (Chapter 8): Scheduled Tasks / Services / PATH / Firewall / File Associations.
+/// Uniform Criteria: A case is considered a legacy issue only if the cited "local executable file/directory on this machine does not exist."
+/// These types carry a higher risk of deletion than ordinary residual data; by default, none of them are checked (only displayed as optional for deletion), and the user must confirm.
 /// </summary>
 public static class ExtendedScanner
 {
-    /// <summary>聚合运行各扩展扫描器。includeFileAssociations 默认 false（风险最高，仅深度扫描开启）。</summary>
+    /// <summary> Runs all extension scanners in aggregate. includeFileAssociations is set to false by default (highest risk; enabled only for deep scans). </summary>
     public static List<ResidualItem> ScanOrphans(bool includeFileAssociations = false)
     {
         var all = new List<ResidualItem>();
@@ -33,8 +33,8 @@ public static class ExtendedScanner
     }
 
     /// <summary>
-    /// 判断被引用路径是否为“本机本地磁盘上、但已不存在”的可执行文件/目录。
-    /// 展开环境变量、处理 \??\ 与 \SystemRoot\ 前缀；网络/NAS 与非绝对路径不判定。
+    /// Determine whether the referenced path is an executable file or directory that is "located on a local disk on this machine but no longer exists."
+    /// Expand environment variables; handle the \??\ and \SystemRoot\ prefixes; do not check for network/NAS or non-absolute paths.
     /// </summary>
     internal static bool IsMissingLocalTarget(string? raw, out string resolved)
     {
@@ -60,7 +60,7 @@ public static class ExtendedScanner
     }
 }
 
-/// <summary>计划任务扫描：读取 Tasks 目录内任务 XML，动作可执行文件不存在则为遗留（8.1）。</summary>
+/// <summary>Scheduled Task Scan: Reads the task XML files in the Tasks directory; if the executable file for an action does not exist, it is marked as legacy (8.1). </summary>
 internal static class ScheduledTaskScanner
 {
     public static List<ResidualItem> ScanOrphans()
@@ -78,7 +78,7 @@ internal static class ScheduledTaskScanner
             try
             {
                 var doc = XDocument.Load(file);
-                // 用 LocalName 匹配，规避任务 XML 命名空间
+                // Use LocalName for matching to work around the task XML namespace
                 var commands = doc.Descendants()
                     .Where(e => e.Name.LocalName == "Command")
                     .Select(e => e.Value.Trim())
@@ -106,13 +106,13 @@ internal static class ScheduledTaskScanner
                     break;
                 }
             }
-            catch { /* 单个任务解析失败忽略 */ }
+            catch { /* Ignore if a single task fails to parse */ }
         }
         return results;
     }
 }
 
-/// <summary>服务扫描：ImagePath 指向的 .exe 不存在则为遗留（8.2）。删除风险高，默认不勾选。</summary>
+/// <summary>Service scan: If the .exe file pointed to by ImagePath does not exist, it is considered legacy (8.2). Deletion carries a high risk; this option is unchecked by default. </summary>
 internal static class ServiceScanner
 {
     public static List<ResidualItem> ScanOrphans()
@@ -131,7 +131,7 @@ internal static class ServiceScanner
                     continue;
 
                 var exe = ExtractServiceExe(imagePath);
-                if (exe is null) continue;                     // 只处理明确的 .exe 服务镜像
+                if (exe is null) continue;                     // Process only explicit .exe service images
                 if (!ExtendedScanner.IsMissingLocalTarget(exe, out var resolved)) continue;
 
                 var display = svc.GetValue("DisplayName") as string ?? name;
@@ -147,12 +147,12 @@ internal static class ServiceScanner
                     CanAutoSelect = false
                 });
             }
-            catch { /* 单个服务忽略 */ }
+            catch { /* Ignore a Single Service */ }
         }
         return results;
     }
 
-    /// <summary>从 ImagePath 提取可执行文件路径；仅返回以 .exe 结尾者，其余（svchost/驱动等）返回 null。</summary>
+    /// <summary>Extracts the executable file path from ImagePath; returns only those ending in .exe; returns null for all others (such as svchost or drivers). </summary>
     private static string? ExtractServiceExe(string imagePath)
     {
         var s = imagePath.Trim();
@@ -171,7 +171,7 @@ internal static class ServiceScanner
     }
 }
 
-/// <summary>PATH 扫描：用户/系统 PATH 中指向不存在目录的条目（8.3）。默认不勾选。</summary>
+/// <summary>PATH Scan: Entries in the user/system PATH that point to nonexistent directories (8.3). Unchecked by default. </summary>
 internal static class PathScanner
 {
     public static List<ResidualItem> ScanOrphans()
@@ -220,7 +220,7 @@ internal static class PathScanner
     }
 }
 
-/// <summary>防火墙规则扫描：注册表规则的关联程序 App= 不存在则为遗留（8.4）。默认不勾选。</summary>
+/// <summary>Firewall Rule Scan: If the associated program for a registry rule (App=) does not exist, it is considered legacy (8.4). This option is unchecked by default. </summary>
 internal static class FirewallScanner
 {
     private const string RulesKey =
@@ -233,10 +233,10 @@ internal static class FirewallScanner
         using var key = baseKey.OpenSubKey(RulesKey);
         if (key is null) return results;
 
-        // netsh 按名称删除会删光全部同名规则（不同程序常用相同显示名）：
-        // 先按名称聚合，只有“同名规则全部失效”才列为遗留，避免波及仍有效的规则。
-        // 无 App= 的同名规则视为有效（无法判定其失效）。
-        var missingByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase); // 名称 → 任一失效路径
+        // Using `netsh` to delete by name will remove all rules with that name (different programs often use the same display name):
+        // First, aggregate by name; only rules where “all rules with the same name are invalid” are listed as legacy, to avoid affecting rules that are still valid.
+        // Rules with the same name but without "App=" are considered valid (it is not possible to determine that they are invalid).
+        var missingByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase); // Name → Any Failure Path
         var validNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var valueName in key.GetValueNames())
         {
@@ -252,12 +252,12 @@ internal static class FirewallScanner
                 }
                 missingByName.TryAdd(display, resolved);
             }
-            catch { /* 单条规则忽略 */ }
+            catch { /* Ignore a single rule */ }
         }
 
         foreach (var (display, resolved) in missingByName)
         {
-            if (validNames.Contains(display)) continue; // 同名中尚有有效规则，按名删除会误伤
+            if (validNames.Contains(display)) continue; // There are valid rules for names with the same name, so deleting by name may result in unintended consequences.
             results.Add(new ResidualItem
             {
                 Type = ResidualType.FirewallRule,
@@ -283,8 +283,8 @@ internal static class FirewallScanner
 }
 
 /// <summary>
-/// 文件关联扫描（8.5，风险最高）：HKCU/HKLM Software\Classes\Applications 下
-/// shell\open\command 指向已删除程序的关联项。默认不勾选，仅深度扫描启用。
+/// File Association Scan (8.5, Highest Risk): Under HKCU/HKLM\Software\Classes\Applications
+/// "shell\open\command" points to an association entry for a deleted program. This option is unchecked by default and is enabled only during a deep scan.
 /// </summary>
 internal static class FileAssociationScanner
 {
@@ -327,9 +327,9 @@ internal static class FileAssociationScanner
                         CanAutoSelect = false
                     });
                 }
-                catch { /* 单项忽略 */ }
+                catch { /* Single-Item Exclusion */ }
             }
         }
-        catch { /* 无权限或不存在 */ }
+        catch { /* No permission or does not exist */ }
     }
 }

@@ -20,9 +20,9 @@ using IoPath=System.IO.Path;
 namespace BeeX.DeskNest;
 
 /// <summary>
-/// 長截圖（滾動截圖）：框選一個固定物理區域後，用戶手動滾動底層窗口，本窗口按固定頻率
-/// 抓取該區域並用「行特徵重疊匹配」把新增內容拼接成一張長圖，實時顯示縮略圖。完成後保存/複製。
-/// 本窗口與區域邊框均設置 WDA_EXCLUDEFROMCAPTURE，不會被抓進長圖。
+/// Long Screenshot (Scrolling Screenshot): After selecting a fixed physical area, the user manually scrolls the underlying window, and this window captures the screen at a fixed frequency.
+/// Capture the selected area and use "row-based feature overlap matching" to stitch the new content into a single long image, displaying a thumbnail in real time. Once complete, save or copy it.
+/// Both this window and its border are set to WDA_EXCLUDEFROMCAPTURE, so they will not be included in the long screenshot.
 /// </summary>
 public sealed class ScrollingCaptureWindow : Window
 {
@@ -39,9 +39,9 @@ public sealed class ScrollingCaptureWindow : Window
     Window? marker;
     System.Windows.Threading.DispatcherTimer? timer;
     Drawing.Bitmap? accum;
-    byte[]? lastFrameBytes;    // 上一幀像素（方向守衛 MiddleShift + 運動遮罩用）
+    byte[]? lastFrameBytes;    // Previous Frame Pixel (for Directional Guard MiddleShift + Motion Mask)
     int lastFrameStride;
-    int? lastFrameTop;     // 上一幀成功配準的幀頂座標（長圖座標系）：連續性門檻用
+    int? lastFrameTop;     // Top coordinates of the successfully registered previous frame (long-range coordinate system): Used for the continuity threshold
     readonly List<Drawing.Bitmap> _pendingFrames=new();
     bool busy, finishing;
     DateTime graceUntil;
@@ -133,14 +133,14 @@ public sealed class ScrollingCaptureWindow : Window
             }
             else
             {
-                // 方向守衛：檢測向上滾動（內容下移），立即跳過本幀
+                // Directional Guard: Detects upward scrolling (content moves down), and immediately skips this frame
                 int? ms=MiddleShift(lastFrameBytes,bytes,lastFrameStride);
-                if(ms==null){lastFrameBytes=bytes;lastFrameStride=stride;return;} // 匹配不可信，跳過
-                if(ms.Value>=2){lastFrameBytes=bytes;lastFrameStride=stride;return;} // 內容下移 = 用戶向上滾，不拼接
+                if(ms==null){lastFrameBytes=bytes;lastFrameStride=stride;return;} // Match is unreliable; skip
+                if(ms.Value>=2){lastFrameBytes=bytes;lastFrameStride=stride;return;} // Content shifts down = User scrolls up; no concatenation
 
-                // 全局配準：匹配已拼長圖底部窗口
+                // Global Registration: Matching the Window at the Bottom of the Stitched Image
                 int d=FindAppendRows(bytes,stride,out int? regTop);
-                // 連續性門檻：需連續兩幀配準成功且幀頂跳變 ≤ 一屏
+                // Continuity Threshold: Two consecutive frames must be successfully aligned, and the jump at the top of the frame must be ≤ one screen.
                 if(d>=2&&lastFrameTop.HasValue&&regTop.HasValue&&Math.Abs(regTop.Value-lastFrameTop.Value)<=ph)
                 {
                     AppendRows(bytes,stride,d,regTop.Value);
@@ -148,11 +148,11 @@ public sealed class ScrollingCaptureWindow : Window
                 }
                 else if(d>=2&&!lastFrameTop.HasValue)
                 {
-                    // 首幀匹配（accum 剛初始化），直接拼接
+                    // First-frame matching (accum just initialized), concatenate directly
                     AppendRows(bytes,stride,d,regTop!.Value);
                     lastFrameTop=regTop;
                 }
-                // d<2 或連續性失敗：不拼接，不更新 lastFrameTop
+                // d < 2 or consecutive failures: Do not concatenate; do not update lastFrameTop
                 lastFrameBytes=bytes;lastFrameStride=stride;
             }
         }
@@ -160,8 +160,8 @@ public sealed class ScrollingCaptureWindow : Window
         finally{busy=false;}
     }
 
-    /// <summary>重疊區重寫式拼接：用當前幀的連續切片把長圖末尾整體重寫，接縫兩側永遠來自同一幀連續像素。
-    /// 全程 LockBits + Marshal.Copy 字節拷貝，嚴禁 DrawImage 重採樣。frameTop = 當前幀頂行在長圖中的座標。</summary>
+    /// <summary>Overlapping Area Rewrite-Style Stitching: The end of a long image is completely rewritten using consecutive slices from the current frame, ensuring that the pixels on both sides of the seam always come from consecutive pixels within the same frame.
+    /// Use LockBits + Marshal.Copy for byte-by-byte copying throughout; resampling via DrawImage is strictly prohibited. frameTop = the coordinate of the top line of the current frame within the long image. </summary>
     void AppendRows(byte[] curBytes,int stride,int d,int frameTop)
     {
         if(accum==null||d<1)return;
@@ -179,7 +179,7 @@ public sealed class ScrollingCaptureWindow : Window
         int nStride=nd.Stride;
         try
         {
-            // 1) 保留長圖頂部 [0,keep)
+            // 1) Keep the top part of the long image [0,keep)
             if(keep>0)
             {
                 var od=accum.LockBits(new Drawing.Rectangle(0,0,pw,keep),Imaging.ImageLockMode.ReadOnly,Imaging.PixelFormat.Format32bppArgb);
@@ -193,7 +193,7 @@ public sealed class ScrollingCaptureWindow : Window
                 }
                 finally{accum.UnlockBits(od);}
             }
-            // 2) 用當前幀連續切片 [srcStart, srcStart+band) 重寫末尾 band 行
+            // 2) Use consecutive slices [srcStart, srcStart+band) from the current frame to overwrite the last band lines
             int copy=Math.Min(stride,nStride);
             for(int y=0;y<band;y++)
             {
@@ -208,9 +208,9 @@ public sealed class ScrollingCaptureWindow : Window
     }
 
     /// <summary>
-    /// 全局配準（主流長截圖做法）：把當前幀對位到「已拼長圖的底部窗口」，算出當前畫面在長圖中的位置：
-    /// 仍在已拼範圍內（包括往上滾、回滾重看）則一行不加；幀底超出長圖末尾時只拼超出的行。
-    /// 每幀獨立定位、無狀態機，天然免疫上下往返滾動與快滾失鎖（離開窗口匹配不到就不拼，回來自動恢復）。
+    /// Global Alignment (the mainstream approach for long screenshots): Align the current frame with the "bottom window of the already-assembled long screenshot," and calculate the position of the current frame within the long screenshot:
+    /// If it is still within the merged range (including scrolling up or back to review), no rows are added; if the bottom of the frame extends beyond the end of the long chart, only the rows that extend beyond are merged.
+    /// Independent positioning per frame, stateless machine, natural up-and-down scrolling of the immune system, and fast scrolling unlocking (if a match cannot be found upon leaving the window, it is not assembled; upon returning, it automatically resumes).
     /// </summary>
     int FindAppendRows(byte[] cur,int stride,out int? regTop)
     {
@@ -218,21 +218,21 @@ public sealed class ScrollingCaptureWindow : Window
         if(accum==null)return 0;
         int accumH=accum.Height;
         int T=Math.Clamp(ph/8,24,80);
-        // 搜索窗口：長圖底部 winH = ph + T + 8
+        // Search box: At the bottom of the long image, winH = ph + T + 8
         int winH=Math.Min(accumH,ph+T+8);
         int winTop=accumH-winH;
         var win=AccumWindowBytes(winTop,winH,out int winStride);
         if(win==null)return 0;
         int colStep=Math.Max(1,pw/64);
         const int rowStep=2;
-        // 候選模板帶：22%、34%、46%（避開頂部懸浮欄）
+        // Recommended template widths: 22%, 34%, 46% (avoid the top floating bar)
         foreach(var bandTop in new[]{(int)(ph*0.22),(int)(ph*0.34),(int)(ph*0.46)})
         {
             if(bandTop+T>=ph)continue;
             if(TemplateDetail(cur,bandTop,T,stride)<3)continue;
             int maxO=winH-T;
             if(maxO<0)continue;
-            // 粗搜：列步長 pw/64、行步長 2、SAD 提前終止
+            // Coarse Search: Column Step Size pw/64, Row Step Size 2, SAD Early Termination
             long bestSad=long.MaxValue;int bestO=-1;
             for(int o=0;o<=maxO;o++)
             {
@@ -250,7 +250,7 @@ public sealed class ScrollingCaptureWindow : Window
                 if(sad<bestSad){bestSad=sad;bestO=o;}
             }
             if(bestO<0)continue;
-            // 精修：±3 行內全分辨率逐行計算 SAD
+            // Refined: ±3 lines, full-resolution, line-by-line SAD calculation
             int fineO=bestO;long fineBest=long.MaxValue;
             for(int o=Math.Max(0,bestO-3);o<=Math.Min(maxO,bestO+3);o++)
             {
@@ -266,10 +266,10 @@ public sealed class ScrollingCaptureWindow : Window
                 }
                 if(sad<fineBest){fineBest=sad;fineO=o;}
             }
-            // 校驗：均差 ≤10/通道 才接受匹配
+            // Calibration: A mean error of ≤10 per channel is required for the match to be accepted.
             double avg=(double)fineBest/((long)T*pw*3);
             if(avg>10)continue;
-            // 逐行重疊驗證：從重疊區域均勻抽 24 行，每行獨立判定均差 ≤12/通道
+            // Row-by-Row Overlap Verification: Uniformly sample 24 rows from the overlap area; for each row, independently verify that the mean deviation is ≤12 per channel.
             int frameTop=winTop+fineO-bandTop;
             int ovStart=Math.Max(frameTop,winTop),ovEnd=Math.Min(frameTop+ph,accumH);
             if(ovEnd-ovStart<ph/3)continue;
@@ -291,7 +291,7 @@ public sealed class ScrollingCaptureWindow : Window
                 rowsChecked++;
                 if((double)rsad/rsamples>12)badRows++;
             }
-            if(rowsChecked<8||badRows>1)continue; // 最多容忍 1 行失敗
+            if(rowsChecked<8||badRows>1)continue; // At most 1 failed line is allowed
             int d=frameTop+ph-accumH;
             regTop=frameTop;
             return d>=2?d:0;
@@ -299,7 +299,7 @@ public sealed class ScrollingCaptureWindow : Window
         return 0;
     }
 
-    /// <summary>取已拼長圖底部窗口的像素字節（ReadOnly LockBits）。</summary>
+    /// <summary>Retrieves the pixel bytes (ReadOnly LockBits) from the bottom window of the concatenated long image.</summary>
     byte[]? AccumWindowBytes(int winTop,int winH,out int winStride)
     {
         winStride=0;
@@ -319,7 +319,7 @@ public sealed class ScrollingCaptureWindow : Window
         catch{return null;}
     }
 
-    /// <summary>模板紋理量：相鄰採樣行的平均通道差。接近 0 = 空白/純色，匹配無辨識力。</summary>
+    /// <summary>Pattern texture value: The average channel difference between adjacent sample rows. A value close to 0 indicates a blank or solid color, and the match has no discriminative power. </summary>
     double TemplateDetail(byte[] buf,int top,int T,int stride)
     {
         int colStep=Math.Max(1,pw/64);
@@ -338,7 +338,7 @@ public sealed class ScrollingCaptureWindow : Window
         return samples==0?0:(double)sum/samples;
     }
 
-    /// <summary>方向守卫：检测内容是否下移（用户向上滚动）</summary>
+    /// <summary>Directional Guard: Detects whether the content has shifted downward (user scrolling up)</summary>
     int? MiddleShift(byte[]? last, byte[] cur, int stride)
     {
         if(last==null)return null;
@@ -378,14 +378,14 @@ public sealed class ScrollingCaptureWindow : Window
         return bestO - m;
     }
 
-    /// <summary>運動遮罩：將當前幀底部 strip 中的靜止 UI 元素替換為背景色（採樣選區四邊像素眾數）。</summary>
+    /// <summary>Motion Mask: Replaces static UI elements in the bottom strip of the current frame with the background color (based on the number of pixels on each side of the selection).</summary>
     byte[] ApplyMotionMask(byte[] curBytes,int stride,byte[]? lastBytes,int lastStride)
     {
         if(lastBytes==null||lastBytes.Length==0)return curBytes;
-        int stripH=Math.Max(1,ph/20); // 底部 strip 高度
+        int stripH=Math.Max(1,ph/20); // Bottom strip height
         var result=new byte[curBytes.Length];
         System.Array.Copy(curBytes,result,curBytes.Length);
-        // 採樣選區四邊像素眾數作為背景色
+        // Use the frequency of pixels at the four corners of the selected area as the background color
         var bgc=GetBorderColorMode(curBytes,stride);
         int top=ph-stripH;
         for(int y=top;y<ph;y++)
@@ -400,7 +400,7 @@ public sealed class ScrollingCaptureWindow : Window
                 int db=Math.Abs(curBytes[ci+2]-lastBytes[li+2]);
                 if(dr+dg+db<=30)
                 {
-                    // 靜止像素 → 填充背景色
+                    // Static Pixels → Fill with Background Color
                     result[ci]=bgc[0];result[ci+1]=bgc[1];result[ci+2]=bgc[2];result[ci+3]=255;
                 }
             }
@@ -408,7 +408,7 @@ public sealed class ScrollingCaptureWindow : Window
         return result;
     }
 
-    /// <summary>採樣選區四邊像素的眾數顏色。</summary>
+    /// <summary>Samples the most frequent color of the pixels at the four corners of the selected area. </summary>
     byte[] GetBorderColorMode(byte[] bytes,int stride)
     {
         var counts=new Dictionary<int,int>();

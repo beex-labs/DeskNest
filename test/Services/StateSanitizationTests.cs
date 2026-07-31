@@ -6,7 +6,7 @@ namespace BeeX.DeskNest.Tests.Services;
 
 public class StateSanitizationTests
 {
-    // ---- Finite: 正常值返回原值 ----
+    // ---- Finite: Normal values return to their original values ----
 
     [Fact]
     public void Finite_NormalValue_ReturnsOriginal()
@@ -38,7 +38,7 @@ public class StateSanitizationTests
         DeskNestService.Finite(1.5, 0.5, 0, 1).Should().Be(1);
     }
 
-    // ---- Finite: NaN 返回回退值 ----
+    // ---- Finite: NaN returns a fallback value ----
 
     [Fact]
     public void Finite_NaN_ReturnsFallback()
@@ -46,7 +46,7 @@ public class StateSanitizationTests
         DeskNestService.Finite(double.NaN, 0.5, 0, 1).Should().Be(0.5);
     }
 
-    // ---- Finite: Infinity 返回回退值 ----
+    // ---- Finite: Infinity Returns a Return Value ----
 
     [Fact]
     public void Finite_PositiveInfinity_ReturnsFallback()
@@ -60,7 +60,7 @@ public class StateSanitizationTests
         DeskNestService.Finite(double.NegativeInfinity, 14, 10, 36).Should().Be(14);
     }
 
-    // ---- Finite: 不同回退值和范围 ----
+    // ---- Finite: Different Rollback Values and Ranges ----
 
     [Fact]
     public void Finite_FontSizeRange_ClampedCorrectly()

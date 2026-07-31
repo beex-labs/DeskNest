@@ -49,8 +49,8 @@ public partial class WipeWindow : Window
         WipeResult result;
         try
         {
-            // Task.Run 包裹：填充循环（随机数生成/Flush）与结尾同步删除数百 GB 填充文件
-            // 都在后台线程执行，避免 UI 线程被高频占用；Progress<T> 会自动回投 UI 线程。
+            // Task.Run Package: Filling Loop (Random Number Generation/Flush) and Synchronous Deletion of Hundreds of GB of Filler Files at the End
+            // All operations are executed in a background thread to prevent the UI thread from being tied up by high-frequency operations; `Progress<T>` automatically returns to the UI thread.
             var token = _cts.Token;
             result = await Task.Run(() => _wiper.WipeAsync(drive.Root, progress, token));
         }
@@ -68,7 +68,7 @@ public partial class WipeWindow : Window
         if (result.Completed) Bar.Value = 1;
         ProgText.Text = result.Cancelled ? "已取消" : (result.Completed ? "完成" : "未完成");
 
-        // 刷新磁盘可用空间显示
+        // Refresh the display of available disk space
         DriveGrid.ItemsSource = _wiper.GetWipeableDrives();
 
         var icon = result.Completed || result.Cancelled ? MessageBoxImage.Information : MessageBoxImage.Warning;
@@ -82,15 +82,15 @@ public partial class WipeWindow : Window
     private void OnClose(object sender, RoutedEventArgs e) => Close();
 
     /// <summary>
-    /// 拦截一切关闭途径（含标题栏 X）：擦除进行中先取消任务而不关窗，
-    /// 避免窗口消失后后台继续把磁盘写满且无处可取消。
+    /// Block all ways to close the window (including the "X" in the title bar): While erasing is in progress, cancel the task without closing the window,
+    /// Prevent the background process from continuing to fill up the disk after the window closes, with no way to cancel it.
     /// </summary>
     protected override void OnClosing(CancelEventArgs e)
     {
         if (_running)
         {
             e.Cancel = true;
-            _cts?.Cancel(); // 等擦除任务收尾（清理填充文件）后用户再关闭
+            _cts?.Cancel(); // Users should wait until the erasure task is complete (including cleaning up the fill files) before shutting down.
         }
         base.OnClosing(e);
     }

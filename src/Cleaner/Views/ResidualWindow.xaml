@@ -17,7 +17,7 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- 标题信息 -->
+        <!-- Title Information -->
         <StackPanel Grid.Row="0" Margin="16,14,16,6">
             <TextBlock x:Name="ScanInfo" Text="正在扫描残留…" FontSize="15" FontWeight="SemiBold"/>
             <TextBlock x:Name="SubInfo" Margin="0,4,0,0" Foreground="{StaticResource TextSecondary}"
@@ -25,14 +25,14 @@
                        Text="以下为疑似残留项。高置信项默认已勾选；低置信 / 高风险项默认不勾选，请核对后再清理——勾选项将被永久删除。"/>
         </StackPanel>
 
-        <!-- 警告条 -->
+        <!-- Warning Notice -->
         <Border Grid.Row="1" Margin="16,4,16,8" CornerRadius="4" Padding="10,8"
                 Background="#FFEAF3FF" BorderBrush="#FF9DC3F0" BorderThickness="1">
             <TextBlock TextWrapping="Wrap" Foreground="#FF1A4E8A"
                        Text="💾 清理注册表前会自动导出 .reg 备份到「工具箱 → 备份恢复」。匹配基于程序名与发行商，可能存在误报，请确认无关键数据后再执行。"/>
         </Border>
 
-        <!-- 扫描操作条 -->
+        <!-- Scan the action bar -->
         <Border Grid.Row="2" Margin="16,0,16,8" Padding="0">
             <StackPanel Orientation="Horizontal">
                 <Button Content="🔍 深度扫描" Style="{StaticResource GhostButton}" Margin="0,0,8,0"
@@ -49,7 +49,7 @@
             </StackPanel>
         </Border>
 
-        <!-- 残留列表 -->
+        <!-- Residue List -->
         <DataGrid x:Name="ResidualGrid" Grid.Row="3" Margin="16,0,16,0"
                   AutoGenerateColumns="False" IsReadOnly="False"
                   CanUserAddRows="False" CanUserDeleteRows="False"
@@ -105,7 +105,7 @@
             </DataGrid.Columns>
         </DataGrid>
 
-        <!-- 底部操作 -->
+        <!-- Bottom Operations -->
         <Border Grid.Row="4" Background="{StaticResource ToolbarBg}"
                 BorderBrush="{StaticResource BorderColor}" BorderThickness="0,1,0,0" Padding="16,10">
             <Grid>
@@ -137,7 +137,7 @@
             </Grid>
         </Border>
 
-        <!-- 忙碌遮罩 -->
+        <!-- Busy Mask -->
         <Border x:Name="BusyOverlay" Grid.Row="3" Background="#B0FFFFFF"
                 Visibility="Collapsed">
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">

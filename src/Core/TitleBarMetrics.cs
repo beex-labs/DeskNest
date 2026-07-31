@@ -2,13 +2,13 @@ using System.Windows.Media;
 
 namespace BeeX.DeskNest;
 
-/// <summary>標題欄高度規範：無視 DPI 縮放，螢幕物理測量恆為 65px（65 ÷ 縮放比例 = WPF 邏輯值）。</summary>
+/// <summary>Title bar height standard: ignores DPI scaling; the physical screen measurement is always 65px (65 / scale factor = WPF logical value).</summary>
 public static class TitleBarMetrics
 {
-    /// <summary>標題欄物理像素高度基準。</summary>
+    /// <summary>Physical-pixel height baseline of the title bar.</summary>
     public const double PhysicalHeight = 65;
 
-    /// <summary>把 65 物理像素換算成 visual 所在顯示器下的 WPF 邏輯單位；visual 不可用時退回 100% 縮放。</summary>
+    /// <summary>Converts 65 physical pixels to WPF logical units under the monitor the visual is on; falls back to 100% scaling when the visual is unavailable.</summary>
     public static double Dip(Visual? visual)
     {
         try

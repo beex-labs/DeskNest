@@ -8,11 +8,11 @@ using MessageBox = System.Windows.MessageBox;
 namespace BeeXCleaner.Views;
 
 /// <summary>
-/// 备份恢复窗口（9.4 工具箱）：列出各清理会话的注册表 .reg 备份，可打开目录或运行 .reg 恢复。
+/// Backup and Restore Window (9.4 Toolbox): Lists the .reg registry backups for each cleanup session; you can open the directory or run the .reg file to restore.
 /// </summary>
 public partial class BackupRestoreWindow : Window
 {
-    /// <summary>列表项：显示名 + 完整路径。</summary>
+    /// <summary>List item: Display name + full path.</summary>
     private sealed record Entry(string Display, string Path)
     {
         public override string ToString() => Display;
@@ -108,7 +108,7 @@ public partial class BackupRestoreWindow : Window
                 MessageBox.Show(this, "无法启动 reg.exe。", "恢复注册表", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
-            // 异步读错误流 + 异步等待退出（30s 超时兜底），导入大 .reg 时 UI 不冻结
+            // Asynchronous reading of error streams + asynchronous wait for exit (with a 30-second timeout as a fallback); the UI does not freeze when importing large .reg files
             var errTask = proc.StandardError.ReadToEndAsync();
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             try

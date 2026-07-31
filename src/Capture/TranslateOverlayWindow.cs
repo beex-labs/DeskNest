@@ -21,7 +21,7 @@ using DrawingColor = System.Drawing.Color;
 namespace BeeX.DeskNest;
 
 /// <summary>
-/// OCR 文本块：描述原图中一个文本区域的坐标和内容。
+/// OCR Text Block: Describes the coordinates and content of a text area in the original image.
 /// </summary>
 internal sealed class OcrTextBlock
 {
@@ -33,7 +33,7 @@ internal sealed class OcrTextBlock
 }
 
 /// <summary>
-/// 翻译后的文本块，携带译文和原始坐标。
+/// The translated text block includes both the translation and the original coordinates.
 /// </summary>
 internal sealed record TranslatedBlock
 {
@@ -46,16 +46,16 @@ internal sealed record TranslatedBlock
 }
 
 /// <summary>
-/// 翻译覆盖窗口：在截图原图上叠加译文，实现原位翻译效果。
-/// 纯代码 WPF Canvas 渲染，无 XAML。
+/// Translation Overlay Window: Superimposes the translation onto the original screenshot to provide an in-place translation.
+/// WPF Canvas rendering using pure code, without XAML.
 /// </summary>
 internal sealed class TranslateOverlayWindow : Window
 {
     private readonly string _allTranslatedText;
 
-    /* ── 静态工厂方法 ── */
+    /* ── Static Factory Methods ── */
 
-    /// <summary>批量翻译所有文本块到指定目标语言（DeepL 单次多句，可取消）。</summary>
+    /// <summary>Batch translate all text blocks into the specified target language (DeepL supports multiple sentences at once; can be canceled).</summary>
     public static async Task<List<TranslatedBlock>> TranslateBlocksAsync(List<OcrTextBlock> blocks, string targetLang, CancellationToken ct)
     {
         var results = new TranslatedBlock[blocks.Count];
@@ -81,7 +81,7 @@ internal sealed class TranslateOverlayWindow : Window
         return results.ToList();
     }
 
-    /// <summary>DeepL 批量翻译：一次请求提交多条 text（分块 ≤48），按顺序返回。</summary>
+    /// <summary>DeepL Batch Translation: Submit multiple text strings (chunks ≤48) in a single request; results are returned in order.</summary>
     private static async Task<List<string>> TranslateBatchViaDeepL(List<string> texts, string targetLang, string apiKey, CancellationToken ct)
     {
         var output = new List<string>(texts.Count);
@@ -93,7 +93,7 @@ internal sealed class TranslateOverlayWindow : Window
             var body = new StringBuilder();
             body.Append("target_lang=").Append(Uri.EscapeDataString(tgt));
             foreach (var t in chunk) body.Append("&text=").Append(Uri.EscapeDataString(t));
-            // DeepL 2025-11 起弃用 form body 里的 auth_key，必须用 Authorization 头
+            // Starting in November 2025, DeepL will deprecate the `auth_key` in the form body; you must use the `Authorization` header instead.
             using var req = new HttpRequestMessage(HttpMethod.Post, "https://api-free.deepl.com/v2/translate");
             req.Headers.TryAddWithoutValidation("Authorization", "DeepL-Auth-Key " + apiKey);
             req.Content = new StringContent(body.ToString(), new UTF8Encoding(false), "application/x-www-form-urlencoded");
@@ -109,7 +109,7 @@ internal sealed class TranslateOverlayWindow : Window
         return output;
     }
 
-    /// <summary>无 DeepL key 时的兜底：MyMemory 逐条并行（限流 6）。</summary>
+    /// <summary>Fallback when no DeepL key is available: MyMemory processes entries in parallel (capped at 6). </summary>
     private static async Task<List<string>> TranslateBatchFallback(List<string> texts, string targetLang, CancellationToken ct)
     {
         using var throttle = new SemaphoreSlim(6);
@@ -123,7 +123,7 @@ internal sealed class TranslateOverlayWindow : Window
         return (await Task.WhenAll(tasks)).ToList();
     }
 
-    /// <summary>加载原图、翻译每个 block、创建覆盖窗口并显示。</summary>
+    /// <summary>Load the original image, translate each block, create an overlay window, and display it.</summary>
     public static async Task ShowAsync(
         string imagePath,
         List<OcrTextBlock> blocks,
@@ -139,7 +139,7 @@ internal sealed class TranslateOverlayWindow : Window
         window.Activate();
     }
 
-    /* ── 构造函数 ── */
+    /* ── Constructors ── */
 
     private TranslateOverlayWindow(
         string imagePath,
@@ -161,17 +161,17 @@ internal sealed class TranslateOverlayWindow : Window
         Left = screenRect.X;
         Top = screenRect.Y;
 
-        // 用 System.Drawing.Bitmap 加载图片用于像素采样
+        // Load an image using System.Drawing.Bitmap for pixel sampling
         using var drawingBmp = new DrawingBitmap(imagePath);
 
-        // 构建 Canvas
+        // Creating a Canvas
         var canvas = new Canvas
         {
             Width = screenRect.Width,
             Height = screenRect.Height
         };
 
-        // 1. 底层：原图
+        // 1. Bottom layer: Original image
         var bitmapImage = new BitmapImage(new Uri(imagePath, UriKind.Absolute));
         var image = new System.Windows.Controls.Image
         {
@@ -181,13 +181,13 @@ internal sealed class TranslateOverlayWindow : Window
         };
         canvas.Children.Add(image);
 
-        // 2. 上层：对每个翻译块
+        // 2. Upper layer: For each translation block
         foreach (var block in translatedBlocks)
         {
-            // 2a. 从原图采样背景色
+            // 2a. Sample the background color from the original image
             Color bgColor = SampleBackgroundColor(drawingBmp, block);
 
-            // 2b. 背景色块遮盖原文
+            // 2b. The background block covers the original text
             var bgRect = new Shapes.Rectangle
             {
                 Width = block.Width,
@@ -198,7 +198,7 @@ internal sealed class TranslateOverlayWindow : Window
             Canvas.SetTop(bgRect, block.Y);
             canvas.Children.Add(bgRect);
 
-            // 2c. 译文
+            // 2c. Translation
             var textBlock = new TextBlock
             {
                 Text = block.TranslatedText,
@@ -215,7 +215,7 @@ internal sealed class TranslateOverlayWindow : Window
 
         Content = canvas;
 
-        /* ── 交互事件 ── */
+        /* ── Interaction Events ── */
         MouseLeftButtonDown += (_, e) =>
         {
             if (e.ClickCount == 2) { Close(); return; }
@@ -224,7 +224,7 @@ internal sealed class TranslateOverlayWindow : Window
 
         KeyDown += (_, e) => { if (e.Key == Key.Escape) Close(); };
 
-        /* ── 右键菜单 ── */
+        /* ── Right-Click Menu ── */
         var menu = new WpfContextMenu
         {
             Background = new SolidColorBrush(Color.FromArgb(236, 13, 19, 33)),
@@ -241,9 +241,9 @@ internal sealed class TranslateOverlayWindow : Window
         ContextMenu = menu;
     }
 
-    /* ── 辅助方法 ── */
+    /* ── Supplementary Methods ── */
 
-    /// <summary>从文本框边缘外采样像素，取出现最多的颜色作为背景色。</summary>
+    /// <summary>Samples pixels from outside the text box's border and selects the most common color as the background color.</summary>
     private static Color SampleBackgroundColor(DrawingBitmap bmp, TranslatedBlock block)
     {
         int bx = Math.Max(0, (int)block.X);
@@ -266,24 +266,24 @@ internal sealed class TranslateOverlayWindow : Window
             if (c > bestCount) { bestCount = c; bestArgb = key; }
         }
 
-        // 采样框外 3 像素的边框区域（上方 + 下方）
+        // A border area of 3 pixels outside the sampling box (top + bottom)
         const int margin = 3;
         for (int dx = 0; dx < bw; dx += Math.Max(1, bw / 10))
         {
             for (int m = 1; m <= margin; m++)
             {
-                Sample(bx + dx, by - m);         // 上方
-                Sample(bx + dx, by + bh - 1 + m); // 下方
+                Sample(bx + dx, by - m);         // Above
+                Sample(bx + dx, by + bh - 1 + m); // Below
             }
         }
 
-        // 左方 + 右方
+        // Left + Right
         for (int dy = 0; dy < bh; dy += Math.Max(1, bh / 10))
         {
             for (int m = 1; m <= margin; m++)
             {
-                Sample(bx - m, by + dy);          // 左方
-                Sample(bx + bw - 1 + m, by + dy); // 右方
+                Sample(bx - m, by + dy);          // On the left
+                Sample(bx + bw - 1 + m, by + dy); // On the right
             }
         }
 
@@ -298,34 +298,34 @@ internal sealed class TranslateOverlayWindow : Window
         return Color.FromArgb(dc.A, dc.R, dc.G, dc.B);
     }
 
-    /// <summary>根据背景亮度选择黑色或白色文字。</summary>
+    /// <summary>Select black or white text based on the background brightness.</summary>
     private static Color DetectTextColor(Color bg)
     {
         double luminance = 0.299 * bg.R + 0.587 * bg.G + 0.114 * bg.B;
         return luminance > 128 ? Colors.Black : Colors.White;
     }
 
-    /// <summary>根据框高度估算字号。</summary>
+    /// <summary>Estimate the font size based on the box height.</summary>
     private static double EstimateFontSize(double boxHeight, string originalText)
     {
-        // 框高度 * 0.7 作为基础字号，最小 8
+        // Frame height * 0.7 as the base font size, with a minimum of 8
         return Math.Max(8, boxHeight * 0.7);
     }
 
-    /* ── 内联翻译（复用 TranslateResultWindow 的 DeepL + MyMemory 逻辑） ── */
+    /* ── Inline Translation (Reusing the DeepL + MyMemory logic from TranslateResultWindow) ── */
 
     private static async Task<string> TranslateInline(string text, string targetLangCode)
     {
         if (string.IsNullOrWhiteSpace(text))
             return text;
 
-        // 直接复用 TranslateResultWindow 的静态翻译方法（通过反射不可行，
-        // 所以这里内联一份简化版的翻译调用）
+        // Directly reuse the static translation methods of `TranslateResultWindow` (this is not possible via reflection,
+        // So here is a simplified version of the translation call (included inline).
         string sourceLang = DetectSourceLanguage(text, targetLangCode);
         if (string.Equals(sourceLang, targetLangCode, StringComparison.OrdinalIgnoreCase))
             return text;
 
-        // 尝试 DeepL
+        // Try DeepL
         string? deepLKey = GetDeepLKey();
         if (!string.IsNullOrEmpty(deepLKey))
         {
@@ -333,7 +333,7 @@ internal sealed class TranslateOverlayWindow : Window
             {
                 return await TranslateViaDeepL(text, sourceLang, targetLangCode, deepLKey);
             }
-            catch { /* 回退 MyMemory */ }
+            catch { /* Back to MyMemory */ }
         }
 
         return await TranslateViaMyMemory(text, sourceLang, targetLangCode);
@@ -349,7 +349,7 @@ internal sealed class TranslateOverlayWindow : Window
         lock (Lock)
         {
             if (_deepLKeyLoaded) return _deepLKey;
-            // 用户 Key
+            // User Key
             try
             {
                 string configPath = BeeXPaths.ConfigFile;
@@ -365,7 +365,7 @@ internal sealed class TranslateOverlayWindow : Window
                 }
             }
             catch { }
-            // 发行商 Key
+            // Publisher: Key
             const string PublisherKey = "448cb35d-6320-4ec4-9451-979a7c560b51:fx";
             _deepLKey = PublisherKey;
             _deepLKeyLoaded = true;

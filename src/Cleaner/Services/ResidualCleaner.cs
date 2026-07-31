@@ -9,8 +9,8 @@ using Microsoft.Win32;
 namespace BeeXCleaner.Services;
 
 /// <summary>
-/// 清理结果。PendingReboot：被占用/受保护、已安排重启后删除的项数。
-/// 除计数外保留删除/失败/重启清单、警告与备份路径，供结构化结果窗口与日志展示（6.2）。
+/// Cleanup results. PendingReboot: Number of items that are in use/protected and will be deleted after a scheduled reboot.
+/// In addition to the count, retain the list of deletions, failures, and restarts, as well as warnings and backup paths, for display in the structured results window and logs (6.2).
 /// </summary>
 public sealed class ResidualCleanResult
 {
@@ -20,10 +20,10 @@ public sealed class ResidualCleanResult
     public long FreedBytes { get; set; }
     public string Log { get; set; } = string.Empty;
 
-    /// <summary>注册表备份目录（本次清理产生了备份时才有值）。</summary>
+    /// <summary> Registry backup directory (this value is present only if a backup was created during this cleanup). </summary>
     public string? BackupPath { get; set; }
 
-    /// <summary>会话日志文件路径（若已落盘）。</summary>
+    /// <summary>Path to the session log file (if saved to disk). </summary>
     public string? LogPath { get; set; }
 
     public List<string> DeletedItems { get; } = new();
@@ -33,17 +33,17 @@ public sealed class ResidualCleanResult
 }
 
 /// <summary>
-/// 统一的强制清理器，供残留清理与遗留清理复用。
-/// 文件/目录先清除只读隐藏系统属性再删；仅限本机本地磁盘；灾难性根目录硬拦截。
-/// 删不掉的（被占用/受保护）安排在系统重启后删除。支持删除整键或单个注册表值。
-/// 删除注册表/服务/PATH 前会自动备份到会话目录（6.1）。
+/// A unified forced cleanup mechanism that can be reused for both residual cleanup and legacy cleanup.
+/// First remove the read-only and hidden system attributes from files/directories before deleting them; applies only to local disks on this machine; hard-blocking of the root directory in case of disaster.
+/// Items that cannot be deleted (because they are in use or protected) will be scheduled for deletion after the system restarts. You can delete entire keys or individual registry values.
+/// Before deleting the registry, services, or PATH, a backup is automatically created in the session directory (6.1).
 /// </summary>
 public static class ResidualCleaner
 {
     /// <summary>
-    /// 执行清理（删除用户勾选的项）。
-    /// <paramref name="session"/> 非空时：删注册表/服务/PATH 前自动备份，并把日志并入会话。
-    /// <paramref name="killProcesses"/> 默认 false：仅关句柄，删不掉则安排重启后删（不静默杀进程，见 6.4）。
+    /// Perform cleanup (delete the items selected by the user).
+    /// <paramref name="session"/> When not empty: Automatically back up the registry, services, and PATH before deletion, and include the log in the session.
+    /// <paramref name="killProcesses"/> Default: false—Closes handles only; if deletion fails, the process is deleted after a restart (processes are not silently terminated; see 6.4).
     /// </summary>
     public static ResidualCleanResult Clean(IEnumerable<ResidualItem> items, bool secureErase = false,
         CleanupSession? session = null, bool killProcesses = false)
@@ -100,7 +100,7 @@ public static class ResidualCleaner
         return result;
     }
 
-    // ---------------- 文件系统 ----------------
+    // ---------------- File System ----------------
 
     private static void CleanFolder(ResidualItem item, bool secureErase, bool killProcesses,
         ResidualCleanResult r, StringBuilder log)
@@ -140,7 +140,7 @@ public static class ResidualCleaner
             log.AppendLine($"⛔ 已保护未删（网络/NAS 路径）: {item.Path}");
             return;
         }
-        // 文件级系统保护（6.5）：位于 Windows/System32/SysWOW64 的文件禁止删除
+        // File-Level System Protection (6.5): Files in Windows/System32/SysWOW64 are protected against deletion
         if (item.Type == ResidualType.File && !UninstallService.IsSafeFileToDelete(item.Path))
         {
             r.Failed++; r.FailedItems.Add(item.Path);
@@ -167,12 +167,12 @@ public static class ResidualCleaner
         }
     }
 
-    // ---------------- 注册表（删前自动备份，6.1）----------------
+    // ---------------- Registry (Automatically backs up before deletion, 6.1) -----------------
 
     private static void CleanRegistry(ResidualItem item, CleanupSession? session,
         ResidualCleanResult r, StringBuilder log)
     {
-        // 深度防御：受保护的根级键永不整删（正常扫描不会产生，防御手工构造/数据异常）
+        // Deep Defense: Protected root-level keys are never completely deleted (this does not occur during normal scans; the defense mechanism protects against manually crafted attacks and data anomalies).
         if (item.RegistryValueName is null && ResidualScanner.IsProtectedRegistryRoot(item.Path))
         {
             r.Failed++; r.FailedItems.Add(item.Path);
@@ -187,13 +187,13 @@ public static class ResidualCleaner
                 log.AppendLine($"💾 已备份注册表: {System.IO.Path.GetFileName(backup)}");
             else if (RegistryKeyExists(item.Path))
             {
-                // 键仍存在但备份失败：中止删除。无备份即无恢复途径，不能让“删前自动备份”的承诺落空。
+                // The key still exists, but the backup failed: Deletion aborted. Without a backup, there is no way to recover the data; we cannot let the promise of “automatic backup before deletion” go unfulfilled.
                 r.Failed++; r.FailedItems.Add(item.Path);
                 r.Warnings.Add($"注册表备份失败，已中止删除（无备份即无法恢复）: {item.Path}");
                 log.AppendLine($"⛔ 注册表备份失败，已中止删除: {item.Path}");
                 return;
             }
-            // 键已不存在（如被卸载器提前删掉）：无需备份，继续走删除（实际为 no-op）保持计数一致。
+            // The key no longer exists (e.g., if it was deleted earlier by the uninstaller): No backup is needed; proceed with deletion (which is effectively a no-op) to keep the count consistent.
         }
 
         if (item.RegistryValueName is not null)
@@ -209,7 +209,7 @@ public static class ResidualCleaner
         r.Deleted++; r.DeletedItems.Add(item.Path);
     }
 
-    // ---------------- 服务（sc.exe，删前备份服务注册表键）----------------
+    // ---------------- Services (sc.exe; back up the service registry keys before deleting) -----------------
 
     private static void CleanService(ResidualItem item, CleanupSession? session,
         ResidualCleanResult r, StringBuilder log)
@@ -230,8 +230,8 @@ public static class ResidualCleaner
 
         if (session is not null)
         {
-            // 与 CleanRegistry 同一契约：备份失败且服务注册表键仍存在时中止删除，
-            // 否则“删前自动备份”的承诺落空，产生无备份的不可恢复删除。
+            // Same contract as CleanRegistry: Abort deletion if the backup fails and the service registry key still exists,
+            // Otherwise, the promise of “automatic backup before deletion” would be unfulfilled, resulting in irrecoverable deletions without a backup.
             var svcKey = $@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\{name}";
             var backup = RegistryBackup.Export(svcKey, session.EnsureBackupFolder());
             if (backup is null && RegistryKeyExists(svcKey))
@@ -257,7 +257,7 @@ public static class ResidualCleaner
         }
     }
 
-    // ---------------- 计划任务（schtasks.exe）----------------
+    // ---------------- Scheduled Tasks (schtasks.exe) -----------------
 
     private static void CleanScheduledTask(ResidualItem item, ResidualCleanResult r, StringBuilder log)
     {
@@ -281,14 +281,14 @@ public static class ResidualCleaner
         }
     }
 
-    // ---------------- PATH 条目（删前备份原值）----------------
+    // ---------------- PATH Entries (Back up original values before deleting) -----------------
 
     private static void CleanPathEntry(ResidualItem item, CleanupSession? session,
         ResidualCleanResult r, StringBuilder log)
     {
-        // Payload：作用域 "User"/"Machine"；Path：要移除的目录（保留扫描时的 %VAR% 原文）。
-        // 直接操作注册表并用 DoNotExpandEnvironmentNames 读取：若经 Environment.Get/SetEnvironmentVariable，
-        // 整条 PATH 会被展开且值类型从 REG_EXPAND_SZ 漂移为 REG_SZ，永久破坏其中的 %VAR% 引用。
+        // Payload: Scope "User"/"Machine"; Path: Directory to be removed (retains the original %VAR% from the scan).
+        // Manually edit the registry and use `DoNotExpandEnvironmentNames` to read the value: If using `Environment.Get/SetEnvironmentVariable`,
+        // The entire PATH will be expanded, and the value type will change from REG_EXPAND_SZ to REG_SZ, permanently breaking any %VAR% references it contains.
         var machine = string.Equals(item.Payload, "Machine", StringComparison.OrdinalIgnoreCase);
         var scopeName = machine ? "Machine" : "User";
         var subKeyPath = machine
@@ -310,14 +310,14 @@ public static class ResidualCleaner
         try { kind = key.GetValueKind("Path"); }
         catch { kind = RegistryValueKind.ExpandString; }
 
-        // 同时按“原始原文”与“展开后”两种形态匹配，兼容含 %VAR% 的失效条目
+        // Matches both the "original text" and "expanded" forms simultaneously, and is compatible with invalid entries containing %VAR%.
         var target = NormalizePathEntry(item.Path);
         var targetExpanded = NormalizePathEntry(SafeExpand(item.Path));
         var parts = raw!.Split(';');
         var kept = parts.Where(p =>
         {
             var n = NormalizePathEntry(p);
-            if (n.Length == 0) return true; // 保留空段，不改动无关内容
+            if (n.Length == 0) return true; // Leave blank lines as is; do not modify irrelevant content
             return !n.Equals(target, StringComparison.OrdinalIgnoreCase)
                    && !NormalizePathEntry(SafeExpand(p)).Equals(targetExpanded, StringComparison.OrdinalIgnoreCase);
         }).ToArray();
@@ -331,14 +331,14 @@ public static class ResidualCleaner
 
         if (session is not null && !BackupPathValue(session.EnsureBackupFolder(), scopeName, raw!, log))
         {
-            // 备份成功是覆写 PATH 的前置条件：无备份即无法恢复被误删的条目
+            // A successful backup is a prerequisite for overwriting the PATH: without a backup, it is impossible to restore entries that were accidentally deleted.
             r.Failed++; r.FailedItems.Add(item.Path);
             r.Warnings.Add($"PATH 备份失败，已中止移除（无备份即无法恢复）: {item.Path}");
             log.AppendLine($"⛔ PATH 备份失败，已中止移除: {item.Path}");
             return;
         }
 
-        // 保持原值类型（默认 REG_EXPAND_SZ），并广播环境变量变更通知
+        // Keep the original value type (default: REG_EXPAND_SZ) and broadcast notifications of environment variable changes
         key.SetValue("Path", string.Join(";", kept),
             kind == RegistryValueKind.String ? RegistryValueKind.String : RegistryValueKind.ExpandString);
         BroadcastEnvironmentChange();
@@ -360,7 +360,7 @@ public static class ResidualCleaner
         try
         {
             Directory.CreateDirectory(backupFolder);
-            // 同会话删多条时逐次备份：固定文件名会被后续备份覆盖，丢失含完整原值的第一份。
+            // When deleting multiple items in the same session, back them up one by one: If you use a fixed filename, subsequent backups will overwrite the earlier ones, resulting in the loss of the first backup containing the complete original values.
             var file = EnsureUniqueFile(System.IO.Path.Combine(backupFolder, $"PATH-{scopeName}.txt"));
             File.WriteAllText(file, value, Encoding.UTF8);
             log.AppendLine($"💾 已备份 {scopeName} PATH 原值: {System.IO.Path.GetFileName(file)}");
@@ -373,7 +373,7 @@ public static class ResidualCleaner
         }
     }
 
-    /// <summary>若目标文件已存在则追加序号，避免覆盖已有备份。</summary>
+    /// <summary>If the target file already exists, append a sequence number to avoid overwriting existing backups.</summary>
     private static string EnsureUniqueFile(string filePath)
     {
         if (!File.Exists(filePath)) return filePath;
@@ -396,7 +396,7 @@ public static class ResidualCleaner
     private const int WM_SETTINGCHANGE = 0x001A;
     private const int SMTO_ABORTIFHUNG = 0x0002;
 
-    /// <summary>广播 WM_SETTINGCHANGE("Environment")，使资源管理器/新进程感知 PATH 变更。</summary>
+    /// <summary>Broadcast WM_SETTINGCHANGE("Environment") to notify Explorer and new processes of changes to the PATH. </summary>
     private static void BroadcastEnvironmentChange()
     {
         try
@@ -404,15 +404,15 @@ public static class ResidualCleaner
             SendMessageTimeout((IntPtr)HWND_BROADCAST, WM_SETTINGCHANGE, IntPtr.Zero,
                 "Environment", SMTO_ABORTIFHUNG, 3000, out _);
         }
-        catch { /* 仅通知，失败不影响删除结果 */ }
+        catch { /* This is for informational purposes only; a failure does not affect the deletion results. */ }
     }
 
-    // ---------------- 防火墙规则（netsh.exe）----------------
+    // ---------------- Firewall Rules (netsh.exe) -----------------
 
     private static void CleanFirewallRule(ResidualItem item, ResidualCleanResult r, StringBuilder log)
     {
         var ruleName = string.IsNullOrWhiteSpace(item.Payload) ? item.Path : item.Payload!;
-        // 规则名为任意字符串：内嵌引号可构造 name=all 等参数逃逸，一次删光全部规则，必须拒绝
+        // Rule named "any string": Embedded quotes can be used to construct parameter escapes such as "name=all," which would delete all rules at once; this must be prevented.
         if (HasUnsafeQuote(ruleName))
         {
             r.Failed++; r.FailedItems.Add(item.Path);
@@ -433,12 +433,12 @@ public static class ResidualCleaner
         }
     }
 
-    // ---------------- 系统命令执行 ----------------
+    // ---------------- System Command Execution ----------------
 
-    /// <summary>名称是否含双引号（拼接进命令行会逃逸参数边界，扩大删除范围）。</summary>
+    /// <summary>Does the name contain double quotes? (If concatenated into the command line, this will cause parameter boundaries to be escaped, expanding the scope of the deletion.) </summary>
     private static bool HasUnsafeQuote(string name) => name.Contains('"');
 
-    /// <summary>执行系统命令（sc/schtasks/netsh），返回是否成功与输出摘要。失败写内部日志。</summary>
+    /// <summary> Executes system commands (sc/schtasks/netsh) and returns a success/failure status along with a summary of the output. In case of failure, it writes to the internal log. </summary>
     private static (bool ok, string output) RunSystemCommand(string fileName, string arguments,
         bool ignoreFailure = false)
     {
@@ -456,7 +456,7 @@ public static class ResidualCleaner
             using var proc = Process.Start(psi);
             if (proc is null) return (false, "无法启动进程");
 
-            // 异步读取两路输出，避免“子进程挂起 + 同步 ReadToEnd 永久阻塞”使 30s 超时形同虚设
+            // Read from two output streams asynchronously to avoid the "subprocess hangs + synchronous ReadToEnd blocks indefinitely" scenario, which renders the 30-second timeout meaningless.
             var outTask = proc.StandardOutput.ReadToEndAsync();
             var errTask = proc.StandardError.ReadToEndAsync();
             if (!proc.WaitForExit(30000))
@@ -465,7 +465,7 @@ public static class ResidualCleaner
                 AppLogger.Warn($"{fileName} {arguments} 执行超时(30s)，已强制结束");
                 return (false, "命令执行超时");
             }
-            proc.WaitForExit(); // 确保异步输出缓冲区读尽
+            proc.WaitForExit(); // Ensure that the asynchronous output buffer is completely flushed
             var stdout = outTask.GetAwaiter().GetResult();
             var stderr = errTask.GetAwaiter().GetResult();
 
@@ -485,9 +485,9 @@ public static class ResidualCleaner
     private static string ProtectReason(string path)
         => FileSystemUtil.IsNetworkPath(path) ? "网络/NAS 路径，仅限本机" : "操作系统关键根目录";
 
-    // ---------------- 注册表删除 ----------------
+    // ---------------- Registry Deletion ----------------
 
-    /// <summary>判断注册表键是否存在（用于区分“备份失败”与“键本就不存在”）。</summary>
+    /// <summary>Check whether a registry key exists (to distinguish between "backup failed" and "the key never existed"). </summary>
     internal static bool RegistryKeyExists(string fullPath)
     {
         try
@@ -497,7 +497,7 @@ public static class ResidualCleaner
             using var key = baseKey.OpenSubKey(rel);
             return key is not null;
         }
-        catch { return true; } // 无法确认时保守视为存在，走“备份失败则中止”的安全路径
+        catch { return true; } // When uncertainty exists, assume it is present and take the safe approach of "abort if the backup fails."
     }
 
     public static void DeleteRegistryKey(string fullPath)

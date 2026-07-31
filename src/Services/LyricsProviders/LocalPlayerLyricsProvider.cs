@@ -3,7 +3,7 @@ using BeeX.DeskNest;
 
 namespace BeeX.DeskNest.LyricsProviders;
 
-/// <summary>本地播放器歌词目录扫描</summary>
+/// <summary>Scans local player lyrics directories.</summary>
 internal static class LocalPlayerLyricsProvider
 {
     public static async Task<(string Provider, string Lrc)?> TryAsync(string title, string artist, IEnumerable<string>? playerFolders, CancellationToken token)

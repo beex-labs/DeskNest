@@ -25,7 +25,7 @@ internal static partial class MusicLyricsService
         catch { return false; }
     }
 
-    /// <summary>返回所有应监听的本地播放器歌词目录（供 FileSystemWatcher 使用）。</summary>
+    /// <summary>Returns all local player lyrics directories that should be watched (for FileSystemWatcher).</summary>
     public static IReadOnlyList<string> GetWatchDirectories()
     {
         var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
@@ -75,7 +75,7 @@ internal static partial class MusicLyricsService
         return roots.Where(Directory.Exists).ToList();
     }
 
-    /// <summary>判断本地 .lrc 文件是否匹配当前播放的歌曲，匹配则返回解析后的歌词文本。</summary>
+    /// <summary>Checks whether a local .lrc file matches the currently playing song; if so, returns the parsed lyrics text.</summary>
     public static LyricsDocument? TryLoadFromLocalFile(string lrcPath, string title, string artist, IEnumerable<string>? playerFolders = null, TimeSpan? expectedDuration = null)
     {
         try
@@ -111,7 +111,7 @@ internal static partial class MusicLyricsService
         if (!skipCache && File.Exists(cachePath))
         {
             var cached = await File.ReadAllTextAsync(cachePath, cancellationToken);
-            // 旧缓存可能无 [ti:] 标签，无法验证身份；删除并重新搜索
+            // Old cache may lack the [ti:] tag and cannot verify identity; delete it and search again
             if (string.IsNullOrWhiteSpace(LyricsParser.ReadLrcTag(cached, "ti"))) { try { File.Delete(cachePath); } catch { } log.AppendLine("  缓存无[ti:]标签,已删除"); }
             else
             {
@@ -121,7 +121,7 @@ internal static partial class MusicLyricsService
             }
         }
 
-        // 并行搜索：原版 + 简繁变体，所有源同时尝试
+        // Parallel search: original + simplified/traditional variants, all sources tried at once
         var tasks = new List<Task<(string Provider, string Lrc)?>>();
         foreach(var (vt,va,vName) in ChineseConversion.LrcVariants(title,artist))
         {
@@ -180,9 +180,9 @@ internal static partial class MusicLyricsService
     {
         foreach(var (vt,va,vName) in ChineseConversion.LrcVariants(title,artist))
         {
-            if(vt==title&&va==artist)continue; // 原版已保存
+            if(vt==title&&va==artist)continue; // original already saved
             var tagLine=$"[ti:{vt}]\n[ar:{va}]\n[by:BeeX DeskNest · 变体缓存]\n";
-            var variantContent=tagLine+content[(content.IndexOf('\n')+1)..]; // 替换标签行
+            var variantContent=tagLine+content[(content.IndexOf('\n')+1)..]; // replace the tag line
             var path=CachePath(vt,va);
             if(File.Exists(path))continue;
             try{File.WriteAllText(path,variantContent,new UTF8Encoding(false));}catch{}

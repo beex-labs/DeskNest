@@ -20,7 +20,7 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- ========== 工具栏 ========== -->
+        <!-- ========== Toolbar ========== -->
         <Border Grid.Row="0" Background="{StaticResource ToolbarBg}"
                 BorderBrush="{StaticResource BorderColor}" BorderThickness="0,1,0,1" Padding="10,8">
             <Grid>
@@ -57,7 +57,7 @@
                             Command="{Binding RefreshCommand}" Margin="0,0,8,0"/>
                 </StackPanel>
 
-                <!-- 搜索框 -->
+                <!-- Search box -->
                 <Border Grid.Column="1" Width="240" CornerRadius="4" Background="White"
                         BorderBrush="{StaticResource BorderColor}" BorderThickness="1" Padding="8,0">
                     <Grid>
@@ -83,7 +83,7 @@
             </Grid>
         </Border>
 
-        <!-- ========== 程序列表 ========== -->
+        <!-- ========== List of Programs ========== -->
         <DataGrid x:Name="Grid" Grid.Row="1" Margin="10"
                   AutoGenerateColumns="False" IsReadOnly="True"
                   CanUserAddRows="False" CanUserDeleteRows="False"
@@ -120,11 +120,11 @@
             </DataGrid.RowStyle>
 
             <DataGrid.Columns>
-                <!-- 勾选列（批量） -->
+                <!-- Check Columns (Batch) -->
                 <DataGridTemplateColumn Width="40" CanUserResize="False">
                     <DataGridTemplateColumn.HeaderTemplate>
                         <DataTemplate>
-                            <!-- 三态回显：全选=勾/全不选=空/部分=半选；点击仍由事件驱动切换 -->
+                            <!-- Three-state feedback: Select All = checkmark / Deselect All = blank / Partial = half-select; clicking still triggers event-driven switching -->
                             <CheckBox Click="OnHeaderCheckClick" ToolTip="全选 / 全不选"
                                       IsChecked="{Binding DataContext.AllCheckedState, RelativeSource={RelativeSource AncestorType=DataGrid}, Mode=OneWay}"/>
                         </DataTemplate>
@@ -159,7 +159,7 @@
             </DataGrid.ContextMenu>
         </DataGrid>
 
-        <!-- ========== DeepL 翻译 Key 设置（嵌入在列表下方） ========== -->
+        <!-- ========== DeepL Translation Key Settings (embedded below the list) ========== -->
         <Border Grid.Row="1" VerticalAlignment="Bottom" Margin="10,0,10,10"
                 Background="{StaticResource WindowBg}" BorderBrush="{StaticResource BorderColor}"
                 BorderThickness="1" CornerRadius="6" Padding="12,8">
@@ -179,7 +179,7 @@
             </Grid>
         </Border>
 
-        <!-- ========== 状态栏 ========== -->
+        <!-- ========== Status Bar ========== -->
         <Border Grid.Row="2" Background="{StaticResource ToolbarBg}"
                 BorderBrush="{StaticResource BorderColor}" BorderThickness="0,1,0,0" Padding="10,5">
             <Grid>
@@ -197,7 +197,7 @@
             </Grid>
         </Border>
 
-        <!-- ========== 忙碌遮罩（覆盖全窗口，阻止操作期间再次触发）========== -->
+        <!-- ========== Busy Mask (Covers the entire window and prevents it from being triggered again during the operation)========== -->
         <Border Grid.Row="0" Grid.RowSpan="3" Background="#66000000"
                 Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}">
             <Border Background="White" CornerRadius="8" Padding="30,24"

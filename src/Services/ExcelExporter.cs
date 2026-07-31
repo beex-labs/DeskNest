@@ -5,13 +5,13 @@ using System.Text;
 namespace BeeX.DeskNest;
 
 /// <summary>
-/// 零依赖的最小 xlsx 写出器（OpenXML 内联字符串），供 OCR 表格结果导出 Excel。
-/// 支持：全表居中 + 细边框样式、按内容自适应列宽、合并单元格（mergeCells）、数字写为数值单元格。
+/// Minimal dependency-free xlsx writer (OpenXML inline strings) for exporting OCR table results to Excel.
+/// Supports: whole-table centering with thin-border style, content-based auto column width, merged cells (mergeCells), and numbers written as numeric cells.
 /// </summary>
 static class ExcelExporter
 {
-    /// <param name="grid">完整网格（含被合并覆盖的空格子）</param>
-    /// <param name="merges">合并区域列表（行列均为 0 基，含端点）</param>
+    /// <param name="grid">The full grid (including empty cells covered by merges).</param>
+    /// <param name="merges">List of merged regions (rows and columns are 0-based, endpoints inclusive).</param>
     public static void Save(string path,IReadOnlyList<string[]> grid,IReadOnlyList<(int R1,int C1,int R2,int C2)> merges)
     {
         using var zip=new ZipArchive(File.Create(path),ZipArchiveMode.Create);
@@ -19,12 +19,12 @@ static class ExcelExporter
         Write(zip,"_rels/.rels","<?xml version=\"1.0\" encoding=\"UTF-8\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/></Relationships>");
         Write(zip,"xl/workbook.xml","<?xml version=\"1.0\" encoding=\"UTF-8\"?><workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><sheets><sheet name=\"BeeX OCR\" sheetId=\"1\" r:id=\"rId1\"/></sheets></workbook>");
         Write(zip,"xl/_rels/workbook.xml.rels","<?xml version=\"1.0\" encoding=\"UTF-8\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet1.xml\"/><Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/></Relationships>");
-        // 样式：s=1 居中+细边框；s=2 加粗居中+细边框（首行表头）
+        // Styles: s=1 centered + thin border; s=2 bold centered + thin border (header row)
         Write(zip,"xl/styles.xml","<?xml version=\"1.0\" encoding=\"UTF-8\"?><styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><fonts count=\"2\"><font><sz val=\"11\"/><name val=\"Microsoft YaHei\"/></font><font><b/><sz val=\"11\"/><name val=\"Microsoft YaHei\"/></font></fonts><fills count=\"2\"><fill><patternFill patternType=\"none\"/></fill><fill><patternFill patternType=\"gray125\"/></fill></fills><borders count=\"2\"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style=\"thin\"/><right style=\"thin\"/><top style=\"thin\"/><bottom style=\"thin\"/><diagonal/></border></borders><cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs><cellXfs count=\"3\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\"/><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"1\" xfId=\"0\" applyAlignment=\"1\" applyBorder=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"1\" fillId=\"0\" borderId=\"1\" xfId=\"0\" applyAlignment=\"1\" applyBorder=\"1\" applyFont=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf></cellXfs></styleSheet>");
 
         int columns=grid.Count==0?0:grid.Max(r=>r.Length);
         var sheet=new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?><worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">");
-        // 按内容自适应列宽（中文按 2 个字符宽估算）
+        // Auto column width based on content (Chinese characters estimated at 2 character widths)
         sheet.Append("<cols>");
         for(var c=0;c<columns;c++)
         {

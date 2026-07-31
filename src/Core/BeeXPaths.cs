@@ -3,12 +3,12 @@ using System.IO;
 namespace BeeX.DeskNest;
 
 /// <summary>
-/// BeeX 統一資料根目錄：所有用戶資料（截圖/錄屏/剪貼板圖片/便籤/收納/設定/緩存/元件/清理器日誌）
-/// 全部收口在單一 BeeX 資料夾下，由設定頁統一控制。
-/// 默認 D:\BeeX（無可寫 D 盤則回退 C:\BeeX）；根目錄指針存於 %LocalAppData%\BeeX\root.txt
-/// （指針不能存在根目錄自身內，否則換目錄後找不到自己）。
-/// 目錄規劃：Data\（state/config/write/wwwroot/歌詞封面緩存）、Components\（ffmpeg/beex-ocr）、
-/// Screenshots\、Recordings\、ClipboardImages\、Notes\、FileBoxes\、Cleaner\。
+/// Unified BeeX data root directory: all user data (screenshots/recordings/clipboard images/notes/file boxes/settings/cache/components/cleaner logs)
+/// is consolidated under a single BeeX folder, controlled centrally by the settings page.
+/// Defaults to D:\BeeX (falls back to C:\BeeX if D: is not writable); the root pointer is stored in %LocalAppData%\BeeX\root.txt
+/// (the pointer cannot live inside the root itself, otherwise it could not find itself after the directory is changed).
+/// Directory layout: Data\ (state/config/write/wwwroot/lyrics cover cache), Components\ (ffmpeg/beex-ocr),
+/// Screenshots\, Recordings\, ClipboardImages\, Notes\, FileBoxes\, Cleaner\.
 /// </summary>
 public static partial class BeeXPaths
 {
@@ -18,7 +18,7 @@ public static partial class BeeXPaths
     static string PointerFile => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BeeX", "root.txt");
 
-    /// <summary>當前根目錄（含解析與指針落盤，線程安全，結果緩存）。</summary>
+    /// <summary>Current root directory (with resolution and pointer persistence; thread-safe, result cached).</summary>
     public static string Root
     {
         get
@@ -54,7 +54,7 @@ public static partial class BeeXPaths
                 var pointed = File.ReadAllText(PointerFile).Trim();
                 if (pointed.Length > 0 && Path.IsPathFullyQualified(pointed))
                 {
-                    // 指針位置可用直接採信；根盤被拔出/不可寫時回退默認但不覆蓋指針（盤回來後恢復）
+                    // The pointer location can be trusted directly when usable; when the root drive is removed/unwritable, fall back to the default but do not overwrite the pointer (it recovers when the drive returns)
                     if (EnsureWritable(pointed)) return pointed;
                     var fallback = DefaultRoot();
                     EnsureWritable(fallback);
@@ -107,17 +107,17 @@ public static partial class BeeXPaths
         catch { }
     }
 
-    /// <summary>建立標準子目錄骨架（冪等）。</summary>
+    /// <summary>Creates the standard subdirectory skeleton (idempotent).</summary>
     public static void EnsureLayout()
     {
         foreach (var dir in new[] { DataDir, ComponentsDir, ScreenshotsDir, RecordingsDir, ClipboardDir, NotesDir, FileBoxesDir, CleanerDir })
             try { Directory.CreateDirectory(dir); } catch { }
     }
 
-    /// <summary>BeeX 擁有的頂層目錄清單（根目錄下只會有這些）。</summary>
+    /// <summary>List of top-level directories owned by BeeX (only these exist under the root).</summary>
     static readonly string[] TopLevelDirs={"Data","Components","Screenshots","Recordings","ClipboardImages","Notes","FileBoxes","Cleaner"};
 
-    /// <summary>規範化根目錄：空資料夾（用戶專門新建的）直接用；目標已有其他內容且不叫 BeeX 時才追加 BeeX 子目錄，避免把資料散進用戶既有文件裡。</summary>
+    /// <summary>Normalizes the root directory: an empty folder (deliberately created by the user) is used directly; a BeeX subdirectory is appended only when the target already has other content and is not named BeeX, to avoid scattering data into the user's existing files.</summary>
     public static string NormalizeRoot(string path)
     {
         path=Path.GetFullPath(path.Trim());
@@ -128,9 +128,9 @@ public static partial class BeeXPaths
     }
 
     /// <summary>
-    /// 設定頁更改根目錄：整體搬遷資料到 newRoot 並改寫指針與 state.json 路徑。
-    /// 同卷用 Move（瞬間），跨卷複製+刪除。失敗拋異常由調用方提示；成功後建議重啟進程。
-    /// 舊根若不是 BeeX 專屬目錄（曾被錯誤地散進用戶資料夾），只按所有權清單搬 BeeX 自己的內容，絕不觸碰用戶文件。
+    /// Settings page changes the root directory: migrates all data to newRoot and rewrites the pointer and state.json paths.
+    /// Uses Move within the same volume (instant), copy+delete across volumes. On failure it throws for the caller to surface; a process restart is recommended after success.
+    /// If the old root is not a BeeX-exclusive directory (previously scattered into a user folder by mistake), only BeeX's own content is moved per the ownership list, never touching user files.
     /// </summary>
     public static void ChangeRoot(string newRoot, Action<string>? progress = null)
     {
@@ -138,13 +138,13 @@ public static partial class BeeXPaths
         var oldRoot = Root;
         var trimOld = Path.TrimEndingDirectorySeparator(oldRoot);
         if (string.Equals(Path.TrimEndingDirectorySeparator(newRoot), trimOld, StringComparison.OrdinalIgnoreCase)) return;
-        // 目標在舊根內部只允許一種情況：整理到它自己的 BeeX 子目錄（搬移時會跳過目標自身，不會遞迴自吞）
+        // The target being inside the old root is only allowed in one case: reorganizing into its own BeeX subdirectory (the move skips the target itself, so it does not recursively swallow itself)
         var insideOld = newRoot.StartsWith(trimOld + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
         if (insideOld && !string.Equals(Path.TrimEndingDirectorySeparator(newRoot), Path.Combine(trimOld, "BeeX"), StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("新位置不能位於當前資料夾內部。");
         if (!EnsureWritable(newRoot))
             throw new InvalidOperationException("目標資料夾無法寫入或空間不足");
-        // 跨卷時校驗剩餘空間：只算 BeeX 擁有的目錄（髊根裡用戶自己的文件不搬也不計空間）
+        // Across volumes, validate free space: count only BeeX-owned directories (the user's own files in a polluted root are neither moved nor counted)
         if (!SameVolume(oldRoot, newRoot))
         {
             long required = 0;
@@ -158,12 +158,12 @@ public static partial class BeeXPaths
                 throw new InvalidOperationException("目標資料夾無法寫入或空間不足");
         }
 
-        // 停掉佔用元件的進程句柄，避免移動失敗
+        // Stop process handles holding the components to avoid a failed move
         try { OcrSidecarService.Shutdown(); } catch { }
         FfmpegService.Invalidate();
 
         var oldIsBeeXNamed = string.Equals(Path.GetFileName(trimOld), "BeeX", StringComparison.OrdinalIgnoreCase);
-        // 乾淨根判定不看目錄名而看內容：頂層只有 BeeX 擁有的目錄（允許 desktop.ini）才整體搬；否則視為被汙染的髊根，只按所有權清單搬
+        // A clean root is determined by content, not directory name: only when the top level has just BeeX-owned directories (desktop.ini allowed) is everything moved; otherwise it is treated as a polluted root and only the ownership list is moved
         bool oldIsClean;
         try
         {
@@ -177,7 +177,7 @@ public static partial class BeeXPaths
         catch{oldIsClean=oldIsBeeXNamed;}
         if (oldIsClean)
         {
-            // 乾淨的 BeeX 專屬根：整體搬走全部內容（跳過目標目錄自身，防止目標在舊根內部時自吞）
+            // Clean BeeX-exclusive root: move all content wholesale (skipping the target directory itself, to prevent self-swallowing when the target is inside the old root)
             foreach (var entry in Directory.EnumerateFileSystemEntries(oldRoot))
             {
                 if(string.Equals(Path.TrimEndingDirectorySeparator(entry),Path.TrimEndingDirectorySeparator(newRoot),StringComparison.OrdinalIgnoreCase))continue;
@@ -197,6 +197,6 @@ public static partial class BeeXPaths
         WritePointer(newRoot);
         RewriteStatePaths(Path.Combine(oldRoot, "FileBoxes"), FileBoxesDir, clearImageOverrides: false);
         MirrorConfigToLegacy();
-        DeleteIfEmptyTree(oldRoot); // 只在舊根已無任何文件時才會刪除，用戶自己的文件存在則原封不動
+        DeleteIfEmptyTree(oldRoot); // Only deletes when the old root has no files left; if the user's own files exist, it is left untouched
     }
 }

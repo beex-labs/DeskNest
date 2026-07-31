@@ -13,11 +13,11 @@ using Rectangle=System.Windows.Shapes.Rectangle;
 namespace BeeX.DeskNest;
 
 /// <summary>
-/// 蜂巢彩蛋（超級馬里奧版）：所有可見組件摺疊成 64px 平台、懸浮球化身角色，←→/AD 移動、↑/W/空格 跳躍。
-/// 馬里奧式手感：加速度/慣性、長按跳更高、土狼時間 + 跳躍緩衝、踩頭反彈；真實幀時長積分（不再固定 16ms，徹底跟手）。
-/// 關卡加料：部分摺疊欄自動左右/上下滑動（站上去會被載著走）、主路線撒金幣導航、蜂賊巡邏（可踩扁、側碰即死）。
-/// 抵達黑洞獲勝——彩帶漫天 + 橫幅「恭喜你！手指康復運動 xx 秒」；墜落桌面底部或被蜂賊撞到死亡，Esc 隨時退出。
-/// 遊戲前快照組件狀態（位置/摺疊/置頂），結束後完整還原並刪除臨時補足的平台；平台佈局基於 VirtualScreen。
+/// Hive easter egg (Super Mario style): all visible widgets collapse into 64px platforms, the floating ball becomes the character; move with left/right or A/D, jump with up/W/space.
+/// Mario-like feel: acceleration/inertia, higher jump on hold, coyote time + jump buffering, stomp bounce; integrated over real frame time (no longer a fixed 16ms, fully responsive).
+/// Level extras: some collapsed bars auto-slide horizontally/vertically (standing on one carries you along), coins scatter along the main route for navigation, bee thieves patrol (stompable, deadly on side contact).
+/// Reaching the black hole wins -- confetti everywhere + a banner "Congrats! Finger recovery exercise xx seconds"; falling off the bottom of the desktop or being hit by a bee thief is death; Esc quits anytime.
+/// Widget state (position/collapse/topmost) is snapshotted before the game, fully restored afterwards, and temporarily added platforms are deleted; platform layout is based on the VirtualScreen.
 /// </summary>
 sealed partial class EasterEggGame
 {
@@ -26,10 +26,10 @@ sealed partial class EasterEggGame
     [DllImport("user32.dll",EntryPoint="SetWindowLongPtrW")] static extern IntPtr SetWindowLongPtr(IntPtr hwnd,int index,IntPtr value);
     public static bool Running{get;private set;}
     sealed record NestSnapshot(Guid Id,double Left,double Top,bool Collapsed,bool Pinned);
-    /// <summary>自動滑動平台：圍繞基準點正弦擺動，站在上面的球會被載著走</summary>
+    /// <summary>Auto-sliding platform: oscillates sinusoidally around a base point; a ball standing on it is carried along.</summary>
     sealed class Mover{public WidgetWindow Win=null!;public double BaseX,BaseY,AmpX,AmpY,Omega,Phase;}
     sealed class Coin{public double X,Y;public Grid Visual=null!;public bool Taken;}
-    /// <summary>蜂賊：在平台頂面來回巡邏，踩頭反彈消滅、側碰即死</summary>
+    /// <summary>Bee thief: patrols back and forth on a platform's top; stomping bounces and kills it, side contact is deadly.</summary>
     sealed class Foe{public WidgetWindow Plat=null!;public double X,V;public Grid Visual=null!;public bool Alive=true;}
     sealed class Ribbon{public double X,Y,Vx,Vy,Rot,Vr;public Rectangle Visual=null!;}
     enum EggResult{Won,Dead,Stung,Quit}
@@ -62,36 +62,36 @@ sealed partial class EasterEggGame
     {
         if(Running)return;Running=true;ended=false;
         var participants=service.State.Nests.Where(n=>n.IsVisible&&service.WindowOf(n) is {IsLoaded:true}).ToList();
-        // 組件不夠時臨時補足平台（Note 格子），遊戲結束後刪除
+        // Temporarily add platforms (Note widgets) when there are not enough components; delete them after the game
         for(var i=participants.Count;i<MinPlatforms;i++){var t=service.AddEasterEggPlatform(tempNests.Count);tempNests.Add(t);participants.Add(t);}
         foreach(var n in participants.Where(n=>tempNests.All(t=>t.Id!=n.Id)))snapshots.Add(new NestSnapshot(n.Id,n.Left,n.Top,n.IsCollapsed,n.Pinned));
         service.SuspendGlobalHotkeys();
         service.HideFloatingBallForGame();
-        // 虛擬桌面邊界：VirtualScreen 自動覆蓋所有顯示器（單屏=主屏，雙屏=橫跨兩屏）
+        // Virtual desktop bounds: VirtualScreen automatically covers all monitors (single screen = primary, dual screen = spanning both)
         vLeft=SystemParameters.VirtualScreenLeft;vRight=vLeft+SystemParameters.VirtualScreenWidth;
         vTop=SystemParameters.VirtualScreenTop;vBottom=vTop+SystemParameters.VirtualScreenHeight;
         var bandTop=vTop+120;var bandBottom=Math.Max(bandTop+40,vBottom-170);
         var pairs=participants.Select(n=>(n,w:service.WindowOf(n))).Where(p=>p.w is {IsLoaded:true}).Select(p=>(p.n,w:p.w!)).ToList();
         if(pairs.Count==0){End(EggResult.Quit);return;}
         var mainPlats=new List<WidgetWindow>();
-        // 主路線占約 55%：唯一保證可通關的隨機遊走鏈；其餘全部作為誘餌斷頭路
+        // The main route takes about 55%: the only random-walk chain guaranteed to be completable; all the rest are decoy dead ends
         var mainCount=Math.Clamp((int)Math.Ceiling(pairs.Count*.55),Math.Min(6,pairs.Count),pairs.Count);
         var widths=pairs.Select(p=>Math.Max(200,p.w.Width)).ToList();
-        // 帶難點的主路線：折返爬塔、極限跳、懸崖速降、普通跳隨機串接；平直路線判廢重生成
+        // Main route with difficulty points: switchback tower climbs, extreme jumps, cliff dives, and normal jumps chained randomly; flat routes are discarded and regenerated
         var bestMain=new List<Rect>();double bestScore=double.MinValue;
         for(var round=0;round<28;round++)
         {
             var rects=new List<Rect>();
             var dir=rng.Next(2)==0?1d:-1d;
             var px=vLeft+40+rng.NextDouble()*Math.Max(0,vRight-vLeft-widths[0]-80);
-            var py=bandBottom-rng.NextDouble()*(bandBottom-bandTop)*.3; // 起點偏低，把垂直空間留給難點
+            var py=bandBottom-rng.NextDouble()*(bandBottom-bandTop)*.3; // start relatively low, leaving vertical space for difficulty points
             rects.Add(new Rect(px,py,widths[0],64));
             var reversals=0;var i=1;
-            var finale=Math.Min(2,mainCount-1); // 終局爬塔預留平台數
+            var finale=Math.Min(2,mainCount-1); // platforms reserved for the final tower climb
             while(i<mainCount-finale)
             {
                 var seg=rng.Next(100);
-                if(seg<38&&i+1<mainCount-finale) // 折返爬塔段：2~3 塊交替方向陡升，必須精準折返跳
+                if(seg<38&&i+1<mainCount-finale) // switchback tower-climb segment: 2-3 blocks rising steeply in alternating directions, requiring precise switchback jumps
                 {
                     var steps=Math.Min(2+rng.Next(2),mainCount-finale-i);
                     for(var s=0;s<steps;s++)
@@ -101,23 +101,23 @@ sealed partial class EasterEggGame
                         rects.Add(new Rect(px,py,widths[i],64));i++;
                     }
                 }
-                else if(seg<64) // 極限跳段：間隙逼近物理極限（88%~97% MaxEdgeGap）
+                else if(seg<64) // extreme-jump segment: gap approaches the physical limit (88%-97% MaxEdgeGap)
                 {
                     PlaceNext(rects,widths[i],widths[i-1],rng.Next(-30,110),.88+rng.NextDouble()*.09,ref dir,ref px,ref py,bandTop,bandBottom);
                     rects.Add(new Rect(px,py,widths[i],64));i++;
                 }
-                else if(seg<84) // 懸崖速降段：大落差俯衝，接台容錯窄
+                else if(seg<84) // cliff-dive segment: big drop dive, narrow landing tolerance
                 {
                     PlaceNext(rects,widths[i],widths[i-1],170+rng.NextDouble()*230,.55+rng.NextDouble()*.35,ref dir,ref px,ref py,bandTop,bandBottom);
                     rects.Add(new Rect(px,py,widths[i],64));i++;
                 }
-                else // 普通跳，稽釋節奏
+                else // normal jump, easing the pace
                 {
                     PlaceNext(rects,widths[i],widths[i-1],rng.Next(-80,140),.5+rng.NextDouble()*.3,ref dir,ref px,ref py,bandTop,bandBottom);
                     rects.Add(new Rect(px,py,widths[i],64));i++;
                 }
             }
-            // 終局爬塔：收尾強制連續陡升折返，進洞前必須精準收步
+            // Final tower climb: the ending forces continuous steep switchback rises, requiring a precise final step before the hole
             while(i<mainCount)
             {
                 dir=-dir;reversals++;
@@ -126,7 +126,7 @@ sealed partial class EasterEggGame
             }
             var span=rects.Max(r=>r.Right)-rects.Min(r=>r.Left);
             var vSpread=rects.Max(r=>r.Y)-rects.Min(r=>r.Y);
-            var score=span+vSpread*1.5+reversals*120; // 平直路線（低落差、少折返）得分低，不會被選中
+            var score=span+vSpread*1.5+reversals*120; // flat routes (low drop, few switchbacks) score low and will not be chosen
             if(score>bestScore){bestScore=score;bestMain=rects;}
             if(span>=(vRight-vLeft)*.6&&vSpread>=(bandBottom-bandTop)*.45&&reversals>=3)break;
         }
@@ -138,12 +138,12 @@ sealed partial class EasterEggGame
             w.Left=bestMain[i].X;w.Top=bestMain[i].Y;w.Topmost=true;if(!w.IsVisible)w.Show();
             mainPlats.Add(w);platforms.Add(w);
         }
-        // 出生點取主路線幾何最左平台、黑洞取主路線幾何最右平台
+        // Spawn point is the geometrically leftmost platform of the main route; the black hole is the geometrically rightmost platform of the main route
         var first=mainPlats.OrderBy(p=>p.Left).First();
         var last=mainPlats.OrderByDescending(p=>p.Left+p.Width).First();
         if(ReferenceEquals(first,last)&&mainPlats.Count>1)last=mainPlats.OrderByDescending(p=>p.Left+p.Width).ElementAt(1);
         var holeX=last.Left+Math.Max(200,last.Width)/2;var holeY=last.Top-50;
-        // 誘餌斷頭路：其餘平台全屏隨機撒佈；黑洞 460px 保護區內禁止誘餌
+        // Decoy dead ends: the remaining platforms are scattered randomly full-screen; decoys are forbidden within the 460px protection zone around the black hole
         for(var i=mainCount;i<pairs.Count;i++)
         {
             var (n,w)=pairs[i];
@@ -163,7 +163,7 @@ sealed partial class EasterEggGame
             placed.Add(new Rect(dx,dyPos,width,64));
             platforms.Add(w);
         }
-        // 自動滑動平台：主路線中段每隔一塊挑一個小擺幅橫移（間隙容錯內），誘餌平台則大膽橫/縱漂移
+        // Auto-sliding platforms: pick every other block in the mid main route for a small-amplitude horizontal slide (within gap tolerance); decoy platforms drift boldly horizontally/vertically
         for(var i=1;i<mainPlats.Count-1;i++)
             if(i%3==1)movers.Add(new Mover{Win=mainPlats[i],BaseX=mainPlats[i].Left,BaseY=mainPlats[i].Top,AmpX=42+rng.NextDouble()*28,Omega=.9+rng.NextDouble()*.7,Phase=rng.NextDouble()*Math.Tau});
         foreach(var w in platforms.Except(mainPlats))
@@ -171,10 +171,10 @@ sealed partial class EasterEggGame
                 ?new Mover{Win=w,BaseX=w.Left,BaseY=w.Top,AmpX=70+rng.NextDouble()*80,Omega=.7+rng.NextDouble()*.8,Phase=rng.NextDouble()*Math.Tau}
                 :new Mover{Win=w,BaseX=w.Left,BaseY=w.Top,AmpY=44+rng.NextDouble()*46,Omega=.7+rng.NextDouble()*.8,Phase=rng.NextDouble()*Math.Tau});
         holeCX=holeX;holeCY=last.Top-50;
-        // 全屏透明點擊穿透畫布：球、金幣、蜂賊、黑洞、HUD、彩帶全部畫在同一層，天然壓在平台之上
+        // Full-screen transparent click-through canvas: the ball, coins, bee thieves, black hole, HUD and confetti are all drawn on one layer, naturally on top of the platforms
         BuildOverlay();
         BuildHoleVisual(holeX-42,last.Top-92);
-        // 金幣導航：沿主路線每塊平台上方撒 1 枚 + 相鄰平台間隙上空補 1 枚，跟著金幣走就是通關路
+        // Coin navigation: scatter 1 coin above each main-route platform + 1 in the air over the gap between adjacent platforms; following the coins is the winning path
         for(var i=1;i<mainPlats.Count;i++)
         {
             var p=mainPlats[i];
@@ -182,7 +182,7 @@ sealed partial class EasterEggGame
             var q=mainPlats[i-1];
             AddCoin((p.Left+Math.Max(200,p.Width)/2+q.Left+Math.Max(200,q.Width)/2)/2,Math.Min(p.Top,q.Top)-120);
         }
-        // 蜂賊巡邏：主路線的寬平台，最多 5 隻；出生台與黑洞台一律排除——出生台按幾何最左選取未必是鏈首，單靠 Skip(1) 有幾率漏排導致開局貼臉即死
+        // Bee thief patrols: on wide main-route platforms, up to 5; the spawn platform and hole platform are always excluded -- the spawn platform chosen geometrically leftmost may not be the chain head, and relying on Skip(1) alone can miss it, causing an instant face-to-face death at the start
         foreach(var p in mainPlats.Where(p=>!ReferenceEquals(p,first)&&!ReferenceEquals(p,last)&&p.Width>=240))
         {
             if(foes.Count>=5||rng.Next(100)>=50)continue;
@@ -205,9 +205,9 @@ sealed partial class EasterEggGame
         if(ended)return;ended=true;
         if(hooked){CompositionTarget.Rendering-=OnFrame;hooked=false;}
         try{overlay?.Close();}catch{}
-        // 刪除臨時補足的平台
+        // Delete the temporarily added platforms
         foreach(var t in tempNests.ToList())service.Remove(t);
-        // 還原用戶組件：位置、摺疊狀態、置頂
+        // Restore user widgets: position, collapse state, topmost
         foreach(var s in snapshots)
         {
             var nest=service.State.Nests.FirstOrDefault(n=>n.Id==s.Id);if(nest==null)continue;

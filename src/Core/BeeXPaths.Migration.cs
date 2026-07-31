@@ -4,11 +4,11 @@ using System.Text.Json;
 namespace BeeX.DeskNest;
 
 /// <summary>
-/// BeeXPaths 遷移相關方法：舊版散落資料的一次性搬遷與改寫。
+/// BeeXPaths migration methods: one-time relocation and rewriting of legacy scattered data.
 /// </summary>
 public static partial class BeeXPaths
 {
-    // ---- 舊版散落位置（僅供一次性遷移與兼容鏡像）----
+    // ---- Legacy scattered locations (only for one-time migration and compatibility mirroring) ----
     public static string LegacyDataDir => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BeeX", "DeskNest");
     public static string LegacyConfigFile => Path.Combine(LegacyDataDir, "config.json");
@@ -28,7 +28,7 @@ public static partial class BeeXPaths
         }
     }
 
-    /// <summary>config.json 寫入後鏡像到舊路徑：OCR 側車獨立 exe 仍從舊位置讀 DeepL Key</summary>
+    /// <summary>Mirror config.json to the legacy path after writing: the standalone OCR sidecar exe still reads the DeepL key from the old location.</summary>
     public static void MirrorConfigToLegacy()
     {
         try
@@ -40,7 +40,7 @@ public static partial class BeeXPaths
         catch { }
     }
 
-    /// <summary>是否需要執行一次舊資料遷移（指針未建立且存在任一舊位置資料）。</summary>
+    /// <summary>Whether a one-time legacy data migration is needed (pointer not created and data exists in any legacy location).</summary>
     public static bool NeedsLegacyMigration
     {
         get
@@ -59,15 +59,15 @@ public static partial class BeeXPaths
     }
 
     /// <summary>
-    /// 升級後首次啟動的一次性整體遷移：把散落在 AppData/圖片庫/文檔庫 的舊資料搬進新根目錄，
-    /// 並改寫 state.json 中收納格子的路徑。progress 回調為當前項目名稱（UI 線程外調用）。
+    /// One-time full migration on first launch after upgrade: moves legacy data scattered across AppData / Pictures / Documents into the new root directory,
+    /// and rewrites the file-box paths in state.json. The progress callback reports the current item name (called off the UI thread).
     /// </summary>
     public static void MigrateLegacyIfNeeded(Action<string>? progress = null)
     {
         if (!NeedsLegacyMigration) { EnsureLayout(); return; }
         EnsureLayout();
 
-        // Data：狀態、配置、編輯器資料、緩存（wwwroot 可再生也一併帶走，省一次解壓）
+        // Data: state, config, editor data, cache (wwwroot is regenerable but taken along too, saving one extraction)
         MoveFile(Path.Combine(LegacyDataDir, "state.json"), StateFile, progress, "state.json");
         MoveFile(Path.Combine(LegacyDataDir, "config.json"), ConfigFile, progress, "config.json");
         MoveDir(Path.Combine(LegacyDataDir, "write"), Path.Combine(DataDir, "write"), progress, "write");
@@ -76,20 +76,20 @@ public static partial class BeeXPaths
         MoveDir(Path.Combine(LegacyDataDir, "artwork-cache"), Path.Combine(DataDir, "artwork-cache"), progress, "artwork-cache");
         MoveDir(Path.Combine(LegacyDataDir, "notes"), NotesDir, progress, "Notes");
 
-        // Components：ffmpeg（含帶空格舊目錄兜底）與 OCR 側車（600MB 級，跨卷會慢）
+        // Components: ffmpeg (with fallback to the spaced legacy directory) and the OCR sidecar (600MB-scale, slow across volumes)
         MoveDir(Path.Combine(LegacyDataDir, "ffmpeg"), FfmpegDir, progress, "ffmpeg");
         if (!File.Exists(Path.Combine(FfmpegDir, "ffmpeg.exe")))
             MoveDir(LegacySpacedFfmpegDir, FfmpegDir, progress, "ffmpeg");
         MoveDir(Path.Combine(LegacyDataDir, "beex-ocr"), OcrDir, progress, "OCR");
         MoveFile(Path.Combine(LegacyDataDir, "beex-ocr.stamp"), OcrDir + ".stamp", progress, "OCR stamp");
 
-        // 用戶可見文件：截圖 / 剪貼板圖片 / 錄屏 / 收納格子
+        // User-visible files: screenshots / clipboard images / recordings / file boxes
         MoveDir(Path.Combine(LegacyPicturesDir, "螢幕截圖"), ScreenshotsDir, progress, "Screenshots");
         MoveDir(Path.Combine(LegacyPicturesDir, "剪貼板圖片"), ClipboardDir, progress, "ClipboardImages");
         MoveDir(Path.Combine(LegacyPicturesDir, "螢幕錄製"), RecordingsDir, progress, "Recordings");
         MoveDir(LegacyDocsDir, FileBoxesDir, progress, "FileBoxes");
 
-        // Cleaner 日誌與註冊表備份
+        // Cleaner logs and registry backups
         MoveDir(Path.Combine(LegacyCleanerDir, "Logs"), Path.Combine(CleanerDir, "Logs"), progress, "Cleaner Logs");
         MoveDir(Path.Combine(LegacyCleanerDir, "Backups"), Path.Combine(CleanerDir, "Backups"), progress, "Cleaner Backups");
 
@@ -101,10 +101,10 @@ public static partial class BeeXPaths
         DeleteIfEmptyTree(LegacyCleanerDir);
     }
 
-    /// <summary>從非 BeeX 專屬的髊根目錄中只搬 BeeX 擁有的內容（已知子項 + BeeX_ 檔名前綴 + 檔案盒命名），用戶自己的文件一律不碰。</summary>
+    /// <summary>From a non-BeeX-exclusive polluted root, move only BeeX-owned content (known subitems + BeeX_ filename prefix + file-box naming); never touch the user's own files.</summary>
     static void MoveOwnedContent(string oldRoot, string newRoot, Action<string>? progress)
     {
-        // Data / Components / Cleaner：只搬已知子項（這些目錄名可能與用戶同名目錄合併過）
+        // Data / Components / Cleaner: move only known subitems (these directory names may have been merged with user directories of the same name)
         foreach (var (dir, items) in new (string Dir, string[] Items)[]{
             ("Data", new[]{"state.json","config.json","write","wwwroot","lyrics-cache","artwork-cache","backgrounds"}),
             ("Components", new[]{"ffmpeg","beex-ocr","beex-ocr.stamp"}),
@@ -122,7 +122,7 @@ public static partial class BeeXPaths
             }
             DeleteIfEmptyTree(src);
         }
-        // 媒體目錄：只搬 BeeX_ 前綴的產出文件
+        // Media directories: move only output files with the BeeX_ prefix
         foreach (var dir in new[]{"Screenshots","Recordings","ClipboardImages"})
         {
             var src = Path.Combine(oldRoot, dir);
@@ -132,7 +132,7 @@ public static partial class BeeXPaths
                 MoveFileCore(f, Path.Combine(newRoot, dir, Path.GetFileName(f)));
             DeleteIfEmptyTree(src);
         }
-        // Notes：只搬 App 命名模式的隨記（yyyyMMdd-HHmmss-xxxxxx.md）
+        // Notes: move only quick notes with the app naming pattern (yyyyMMdd-HHmmss-xxxxxx.md)
         var notes = Path.Combine(oldRoot, "Notes");
         if (Directory.Exists(notes))
         {
@@ -143,7 +143,7 @@ public static partial class BeeXPaths
                     MoveFileCore(f, Path.Combine(newRoot, "Notes", Path.GetFileName(f)));
             DeleteIfEmptyTree(notes);
         }
-        // FileBoxes：只搬「檔案盒」開頭的子資料夾
+        // FileBoxes: move only subfolders whose names start with the file-box prefix
         var boxes = Path.Combine(oldRoot, "FileBoxes");
         if (Directory.Exists(boxes))
         {
@@ -154,7 +154,7 @@ public static partial class BeeXPaths
         }
     }
 
-    /// <summary>改寫 state.json 中收納格子（ManagedFiles）的 FolderPath 前綴，並可清空舊的圖片目錄自定義。</summary>
+    /// <summary>Rewrites the FolderPath prefix of file-box widgets (ManagedFiles) in state.json, and can clear the old picture-directory customization.</summary>
     static void RewriteStatePaths(string oldPrefix, string newPrefix, bool clearImageOverrides)
     {
         try
@@ -183,7 +183,7 @@ public static partial class BeeXPaths
         catch { }
     }
 
-    // ---- 移動原語：同卷 Move、跨卷複製+刪除；目標已存在時逐項合併 ----
+    // ---- Move primitives: same-volume Move, cross-volume copy+delete; merge item-by-item when the target already exists ----
     static void MoveFile(string source, string target, Action<string>? progress, string label)
     {
         if (!File.Exists(source)) return;
@@ -216,7 +216,7 @@ public static partial class BeeXPaths
         if (!Directory.Exists(target))
         {
             try { Directory.CreateDirectory(Path.GetDirectoryName(target)!); Directory.Move(source, target); return; }
-            catch { /* 跨卷或被占用：走複製合併 */ }
+            catch { /* Spans multiple volumes or is in use: Use copy and merge */ }
         }
         Directory.CreateDirectory(target);
         foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))

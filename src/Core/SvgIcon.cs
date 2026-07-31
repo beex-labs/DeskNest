@@ -19,7 +19,7 @@ static class SvgIcon
                 var doc=XDocument.Load(stream);
                 var svg=doc.Root!;
                 var ns=svg.GetDefaultNamespace();
-                // 读取 <svg> 上的 stroke/fill 作为默认值
+                // Read stroke/fill on <svg> as defaults
                 var defaultStroke=svg.Attribute("stroke")?.Value;
                 var defaultFill=svg.Attribute("fill")?.Value;
                 var defaultStrokeWidth=svg.Attribute("stroke-width")?.Value;
@@ -42,13 +42,13 @@ static class SvgIcon
                         if(hasStroke)
                         {
                             var sc=stroke=="currentColor"?color:new Media.SolidColorBrush(Parse(stroke));
-                            var sw=(double.TryParse(strokeWidth,out var w)?w:1)*size/24*strokeScale; // SVG 24x24 viewBox → 目标 size
+                            var sw=(double.TryParse(strokeWidth,out var w)?w:1)*size/24*strokeScale; // SVG 24x24 viewBox -> target size
                             geo.Pen=new Media.Pen(sc,sw){StartLineCap=Cap(cap),EndLineCap=Cap(cap),LineJoin=Media.PenLineJoin.Round};
                         }
                         if(hasFill)
                             geo.Brush=fillAttr=="currentColor"?color:new Media.SolidColorBrush(Parse(fillAttr));
                         else if(!hasStroke)
-                            geo.Brush=color; // 无 stroke 无 fill → 用传入色填充
+                            geo.Brush=color; // no stroke, no fill -> fill with the passed-in color
                         drawing.Children.Add(geo);
                     }catch{}
                 }

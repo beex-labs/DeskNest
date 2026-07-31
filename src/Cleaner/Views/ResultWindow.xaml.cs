@@ -12,8 +12,8 @@ using SaveFileDialog = Microsoft.Win32.SaveFileDialog;
 namespace BeeXCleaner.Views;
 
 /// <summary>
-/// 结构化清理结果窗口（6.2 / 9.4）：展示成功/失败/重启后删除/释放空间/备份路径/日志，
-/// 支持打开日志、打开备份目录、导出 .txt / .json。
+/// Structured Cleanup Results Window (6.2 / 9.4): Displays success/failure, deletion after restart, freed space, backup path, and log,
+/// Supports opening logs, opening the backup directory, and exporting to .txt or .json.
 /// </summary>
 public partial class ResultWindow : Window
 {
@@ -53,7 +53,7 @@ public partial class ResultWindow : Window
         LogBox.Text = BuildDetailText();
     }
 
-    /// <summary>组合详情文本：优先使用清理日志，否则用删除/失败/重启清单拼装。</summary>
+    /// <summary> Combination Details Text: Use "Clear Logs" first; otherwise, assemble the list using "Delete," "Failure," and "Restart." </summary>
     private string BuildDetailText()
     {
         if (!string.IsNullOrWhiteSpace(_result.Log))
@@ -161,7 +161,7 @@ public partial class ResultWindow : Window
     private static void OpenInExplorer(string path)
     {
         try { Process.Start(new ProcessStartInfo("explorer.exe", $"\"{path}\"") { UseShellExecute = true }); }
-        catch { /* 忽略 */ }
+        catch { /* Ignore */ }
     }
 
     private void OnClose(object sender, RoutedEventArgs e) => Close();

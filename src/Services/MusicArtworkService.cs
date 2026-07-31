@@ -45,8 +45,8 @@ internal static class MusicArtworkService
     }
 
     /// <summary>
-    /// 按封面 URL 直接加载（用于网易云等桥接已提供封面地址的场景）：归一化为 https +
-    /// 适中尺寸参数，磁盘缓存按 URL 哈希；命中缓存则秒开，避免每次切歌重复下载。
+    /// Loads artwork directly from a cover URL: normalizes to https with a moderate size parameter and
+    /// caches to disk by URL hash, so a cache hit opens instantly and avoids re-downloading on every track change.
     /// </summary>
     public static async Task<BitmapImage?> LoadCoverFromUrlAsync(string url, CancellationToken token = default)
     {
@@ -71,7 +71,7 @@ internal static class MusicArtworkService
         catch { return null; }
     }
 
-    /// <summary>仅查本地 URL 封面缓存，不联网；用于切歌时秒开已缓存封面。</summary>
+    /// <summary>Checks only the local URL cover cache without going online; used to instantly open a cached cover when switching tracks.</summary>
     public static BitmapImage? TryGetCachedCoverByUrl(string url)
     {
         try
@@ -83,7 +83,7 @@ internal static class MusicArtworkService
         catch { return null; }
     }
 
-    /// <summary>将已获得的封面字节（如桥接直取）按同一 URL 键落盘缓存并解码返回，使后续切回可秒开。</summary>
+    /// <summary>Caches already-obtained cover bytes to disk under the same URL key and decodes them, so switching back opens instantly.</summary>
     public static async Task<BitmapImage?> CacheCoverBytesAsync(string url, byte[] bytes, CancellationToken token = default)
     {
         try

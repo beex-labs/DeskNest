@@ -34,7 +34,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         _notifyIcon = CreateNotifyIcon();
         Loaded += (_, _) => Opacity = 1.0;
-        // 標題欄物理 65px：無視 DPI 縮放，螢幕實測恆為 65px
+        // Title bar physical 65px: ignores DPI scaling; the screen measures a constant 65px
         Loaded += (_, _) => ApplyTitleBarPhysicalHeight();
         DpiChanged += (_, _) => ApplyTitleBarPhysicalHeight();
         LoadTranslationLanguages();

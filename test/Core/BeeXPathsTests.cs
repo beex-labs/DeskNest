@@ -24,7 +24,7 @@ public class BeeXPathsTests : IDisposable
         return dir;
     }
 
-    // ---- NormalizeRoot: 路径名为 BeeX 时直接返回 ----
+    // ---- NormalizeRoot: Returns directly when the path name is "BeeX" ----
 
     [Fact]
     public void NormalizeRoot_PathNamedBeeX_ReturnsSamePath()
@@ -42,9 +42,9 @@ public class BeeXPathsTests : IDisposable
     {
         var tempDir = CreateTempDir();
         var beeXDir = Path.Combine(tempDir, "beex");
-        // 创建名为 "beex" 的目录不是 "BeeX"，所以应该追加 BeeX
-        // 但如果路径名恰好是 "beex"（不区分大小写不等于 "BeeX"）
-        // 实际上 "beex" != "beex" 不对，"beex" 和 "BeeX" 在 OrdinalIgnoreCase 下是相等的
+        // Create a directory named "beex"—not "BeeX"—so "BeeX" should be appended.
+        // However, if the path name happens to be "beex" (case-insensitive and not equal to "BeeX")
+        // Actually, "beex" != "beex" is incorrect; "beex" and "BeeX" are considered equal under OrdinalIgnoreCase.
         Directory.CreateDirectory(beeXDir);
 
         var result = BeeXPaths.NormalizeRoot(beeXDir);
@@ -52,7 +52,7 @@ public class BeeXPathsTests : IDisposable
         result.Should().Be(Path.GetFullPath(beeXDir));
     }
 
-    // ---- NormalizeRoot: 空目录直接返回 ----
+    // ---- NormalizeRoot: Returns immediately if the directory is empty ----
 
     [Fact]
     public void NormalizeRoot_EmptyDirectory_ReturnsSamePath()
@@ -62,11 +62,11 @@ public class BeeXPathsTests : IDisposable
         Directory.CreateDirectory(emptyDir);
 
         var result = BeeXPaths.NormalizeRoot(emptyDir);
-        // 目录存在但为空，直接返回
+        // The directory exists but is empty; return immediately.
         result.Should().Be(Path.GetFullPath(emptyDir));
     }
 
-    // ---- NormalizeRoot: 非空且非 BeeX 名 → 追加 BeeX 子目录 ----
+    // ---- NormalizeRoot: Non-empty and not a BeeX name → Add BeeX subdirectory ----
 
     [Fact]
     public void NormalizeRoot_NonEmptyNonBeeXDirectory_AppendsBeeX()
@@ -74,14 +74,14 @@ public class BeeXPathsTests : IDisposable
         var tempDir = CreateTempDir();
         var nonEmptyDir = Path.Combine(tempDir, "MyStuff");
         Directory.CreateDirectory(nonEmptyDir);
-        // 放一个文件使其非空
+        // Place a file there so that it is not empty
         File.WriteAllText(Path.Combine(nonEmptyDir, "test.txt"), "hello");
 
         var result = BeeXPaths.NormalizeRoot(nonEmptyDir);
         result.Should().Be(Path.Combine(Path.GetFullPath(nonEmptyDir), "BeeX"));
     }
 
-    // ---- NormalizeRoot: 路径 trim ----
+    // ---- NormalizeRoot: Path trim ----
 
     [Fact]
     public void NormalizeRoot_TrimsWhitespace()
@@ -94,12 +94,12 @@ public class BeeXPathsTests : IDisposable
         result.Should().Be(Path.GetFullPath(beeXDir));
     }
 
-    // ---- 子目录路径结构验证 ----
+    // ---- Subdirectory Path Structure Validation ----
 
     [Fact]
     public void SubDirectoryPaths_AreUnderRoot()
     {
-        // 这些属性都基于 BeeXPaths.Root，验证结构关系
+        // These properties are all based on BeeXPaths.Root and validate structural relationships.
         BeeXPaths.DataDir.Should().StartWith(BeeXPaths.Root);
         BeeXPaths.ComponentsDir.Should().StartWith(BeeXPaths.Root);
         BeeXPaths.ScreenshotsDir.Should().StartWith(BeeXPaths.Root);
@@ -134,7 +134,7 @@ public class BeeXPathsTests : IDisposable
         BeeXPaths.ConfigFile.Should().Be(Path.Combine(BeeXPaths.DataDir, "config.json"));
     }
 
-    // ---- Legacy 路径结构 ----
+    // ---- Legacy Path Structure ----
 
     [Fact]
     public void LegacyDataDir_IsUnderLocalAppData()

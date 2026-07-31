@@ -42,7 +42,7 @@ public partial class ResidualWindow : Window
         }
         finally
         {
-            // 异常时也必须解除遮罩，否则 async void 抛出后窗口永久不可操作
+            // The mask must also be cleared when an exception occurs; otherwise, the window will remain unresponsive permanently after an `async void` exception is thrown.
             SetBusy(false);
         }
         UpdateStatus();
@@ -59,7 +59,7 @@ public partial class ResidualWindow : Window
             .ToList();
     }
 
-    /// <summary>把扫描/手动结果并入列表（按 类型:路径:值名 去重）。</summary>
+    /// <summary>Merge scan/manual results into a list (removing duplicates based on Type:Path:Value Name).</summary>
     private int MergeInto(IEnumerable<ResidualItem> found)
     {
         var added = 0;
@@ -100,7 +100,7 @@ public partial class ResidualWindow : Window
     {
         var dlg = new OpenFolderDialog { Title = "选择要加入清理清单的文件夹", Multiselect = false };
         if (dlg.ShowDialog(this) != true) return;
-        // 目录大小需递归实测，大目录耗时无上界，必须移出 UI 线程
+        // Directory size must be measured recursively; since large directories can take an indefinite amount of time, this operation must be moved off the UI thread.
         SetBusy(true, "正在计算目录大小…");
         ResidualItem item;
         try
@@ -128,7 +128,7 @@ public partial class ResidualWindow : Window
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
-        // 拦截根级/系统关键位置：整键删除会损坏系统或抹掉大量软件注册信息。
+        // Intercepts at the root level/critical system locations: Deleting an entire key may damage the system or erase a large amount of software registry information.
         if (ResidualScanner.IsProtectedRegistryRoot(input))
         {
             MessageBox.Show(this,
@@ -233,8 +233,8 @@ public partial class ResidualWindow : Window
             SetBusy(false);
         }
 
-        // 失败项仍真实存在于磁盘/注册表：保留在列表中供复查与重试，
-        // 只移除删除成功与已安排重启后删除的项，避免用户误以为已全部删除。
+        // Failed items still exist on disk/in the registry: they are retained in the list for review and retry,
+        // Remove only the entries marked as "Deleted Successfully" and those scheduled for deletion after a restart, to prevent users from mistakenly believing that all entries have been deleted.
         var failedSet = new HashSet<string>(result.FailedItems, StringComparer.OrdinalIgnoreCase);
         foreach (var item in selected)
         {
@@ -250,8 +250,8 @@ public partial class ResidualWindow : Window
     private void OnClose(object sender, RoutedEventArgs e) => Close();
 
     /// <summary>
-    /// 扫描/清理进行中拦截一切关闭途径（含标题栏 X）：否则不可逆删除在后台继续、
-    /// 无法取消，且完成后以已关闭窗口为 Owner 弹结果窗会抛异常、清理结果丢失。
+    /// Scanning/cleaning in progress. Block all ways to close the app (including the "X" in the title bar); otherwise, irreversible deletion will occur and the process will continue in the background.
+    /// It cannot be canceled, and if a results window is displayed with the closed window as the owner after completion, an exception will be thrown and the results will be lost.
     /// </summary>
     protected override void OnClosing(CancelEventArgs e)
     {
@@ -266,7 +266,7 @@ public partial class ResidualWindow : Window
         BusyOverlay.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    /// <summary>轻量输入框（无独立 XAML，运行期构造）。</summary>
+    /// <summary>Lightweight input box (no separate XAML; constructed at runtime).</summary>
     private string? PromptInput(string title, string prompt)
     {
         var box = new System.Windows.Controls.TextBox { Margin = new Thickness(0, 8, 0, 12), MinWidth = 460 };

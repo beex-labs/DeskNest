@@ -18,7 +18,7 @@ sealed partial class ScreenCaptureOverlay
     {
         if(pinned)return;
         if(selectionRect.Width<4||selectionRect.Height<4)return;
-        // OCR 側車未安裝：先彈安裝對話框（可掛後台）；留窗等到裝完則直接續接翻譯
+        // OCR plugin not installed: First, display the installation dialog box (which can run in the background); keep the window open until installation is complete, then resume the translation.
         if(!OcrSidecarService.IsAvailable&&!OcrInstallerService.ShowInstallDialog(language))return;
         translateMode=true;
         translateCts?.Cancel();
@@ -27,7 +27,7 @@ sealed partial class ScreenCaptureOverlay
         _ = RunTranslateAsync(translateCts.Token);
     }
 
-    /// <summary>框选原位翻译：选区内铺蒙版→识别→并行翻译→贴合替换，全程可取消。</summary>
+    /// <summary>Select the text for in-place translation: Apply a mask to the selected area → Recognize → Parallel Translation → Replace with the translated text. You can cancel at any time during the process. </summary>
     async System.Threading.Tasks.Task RunTranslateAsync(System.Threading.CancellationToken token)
     {
         var region=selectionRect;
@@ -50,13 +50,13 @@ sealed partial class ScreenCaptureOverlay
         {
             var blocks=await OcrSidecarService.RecognizeTextWithPositionsAsync(path);
             if(token.IsCancellationRequested)return;
-            // 过滤界面图标误识（爱心→O、播放键→m 等）：只保留"有意义文字"块，图标不翻译不覆盖
+            // Filtering misidentifications of interface icons (heart → O, play button → m, etc.): Only retain "meaningful text" blocks; do not translate or overwrite icons
             blocks=blocks?.Where(IsMeaningfulTextBlock).ToList();
             if(blocks==null||blocks.Count==0){ShowTranslateMask(region,L("未辨識到文字"));return;}
             var target=ResolveTranslateTarget(blocks);
             var translated=await TranslateOverlayWindow.TranslateBlocksAsync(blocks,target,token);
             if(token.IsCancellationRequested)return;
-            // 翻译期间用户又移动了选区则丢弃本次结果（由新任务负责）
+            // If the user moves the selection area during translation, the current result is discarded (and handled by a new task).
             if(region!=selectionRect)return;
             RenderTranslationBlocks(region,translated);
         }
@@ -67,7 +67,7 @@ sealed partial class ScreenCaptureOverlay
         }
     }
 
-    /// <summary>不带输出样式的原始选区裁剪（用于识别，保证坐标与像素一一对应）。</summary>
+    /// <summary>Raw selection cropping without output styling (for identification purposes, to ensure a one-to-one correspondence between coordinates and pixels).</summary>
     BitmapSource? CropRaw(Rect region)
     {
         var pv=translationLayer.Visibility;var ps=selection.Visibility;var pt=toolbar.Visibility;
@@ -102,7 +102,7 @@ sealed partial class ScreenCaptureOverlay
         }
     }
 
-    /// <summary>铺一层半透明蒙版并居中显示状态文字（翻译中/失败）。</summary>
+    /// <summary>Apply a semi-transparent overlay and center the status text (Translating/Failed).</summary>
     void ShowTranslateMask(Rect region,string status)
     {
         translationLayer.Children.Clear();
@@ -121,14 +121,14 @@ sealed partial class ScreenCaptureOverlay
         translationLayer.Visibility=Visibility.Collapsed;
     }
 
-    /// <summary>原位渲染译文：采样背景色遮盖原文 + 自适应字号叠加译文。</summary>
+    /// <summary>In-place rendering translation: Samples the background color to cover the original text + overlays the translation using an adaptive font size.</summary>
     void RenderTranslationBlocks(Rect region,List<TranslatedBlock> blocks)
     {
         translationLayer.Children.Clear();
         var scaleX=source.PixelWidth/CW;var scaleY=source.PixelHeight/CH;
         foreach(var b in blocks)
         {
-            // 块（识别 PNG 像素系）→ 画布坐标（DIU），DPI 自动正确
+            // Blocks (PNG pixel system) → Canvas coordinates (DIU); DPI is automatically corrected
             double cx=region.X+b.X/scaleX;
             double cy=region.Y+b.Y/scaleY;
             double cw=Math.Max(1,b.Width/scaleX);
@@ -155,11 +155,11 @@ sealed partial class ScreenCaptureOverlay
         translationLayer.Visibility=Visibility.Visible;
     }
 
-    /// <summary>从截图像素采样块外围背景色（取四角均值，简单可靠）。</summary>
+    /// <summary>Sample the background color from the area surrounding the image pixel block (calculate the average of the four corners—a simple and reliable method). </summary>
     Color SampleBlockBackground(double scaleX,double scaleY,Rect region,TranslatedBlock b)
     {
         if(srcPixels==null)return Color.FromRgb(255,255,255);
-        // 用识别 PNG 内坐标换算回整屏截图像素坐标
+        // Convert PNG coordinates to full-screen pixel coordinates using coordinate recognition
         int sx=Math.Clamp((int)((region.X+b.X/scaleX)*scaleX),0,source.PixelWidth-1);
         int sy=Math.Clamp((int)((region.Y+b.Y/scaleY)*scaleY),0,source.PixelHeight-1);
         int sw=Math.Max(1,(int)b.Width);int sh=Math.Max(1,(int)b.Height);
@@ -174,24 +174,24 @@ sealed partial class ScreenCaptureOverlay
         return Color.FromRgb((byte)(sr/cnt),(byte)(sg/cnt),(byte)(sb/cnt));
     }
 
-    /// <summary>判断一个识别块是否是"有意义文字"（过滤界面图标误识出的单字母/单符号噪声）。</summary>
+    /// <summary>Determines whether a recognized block is "meaningful text" (filters out single-letter or single-symbol noise caused by misrecognition of interface icons).</summary>
     static bool IsMeaningfulTextBlock(OcrTextBlock b)
     {
         var t=(b.Text??"").Trim();
         if(t.Length==0)return false;
-        // 统计有意义字符：字母 / 数字 / CJK
+        // Statistically Significant Characters: Letters / Numbers / CJK
         int useful=0;
         foreach(var c in t)
             if(char.IsLetterOrDigit(c)||c is >= '\u3400' and <= '\u9fff' or >= '\u3040' and <= '\u30ff' or >= '\uac00' and <= '\ud7af')
                 useful++;
-        // 图标误识几乎都是单个字母/符号（爱心→O、播放→m、logo→G）；≥2 个有意义字符才翻译
-        // 例外：时间/编号如 "05" "03:37" 含多位数字会保留
+        // Icon misrecognition almost always involves a single letter or symbol (heart → O, play → m, logo → G); translation occurs only when there are ≥2 meaningful characters.
+        // Exception: Times/numbers containing multiple digits, such as "05" and "03:37," will be retained.
         return useful>=2;
     }
 
     /// <summary>
-    /// 解析翻译目标语言：设置=具体语言则固定；设置=自动则按"识别内容多数语种"与软件语言决定——
-    /// 内容多数是软件语言→翻成英文；内容多数是英文→翻成软件语言。
+    /// Analysis of the target language for translation: If set to a specific language, it remains fixed; if set to "Auto," it is determined based on "the language of the majority of the content" and the software language—
+    /// If most of the content is in the software language, translate it into English; if most of the content is in English, translate it into the software language.
     /// </summary>
     string ResolveTranslateTarget(List<OcrTextBlock> blocks)
     {
@@ -201,7 +201,7 @@ sealed partial class ScreenCaptureOverlay
         string setting=UserConfigHelper.ReadTranslateTarget();
         if(setting is "zh") return softwareChinese?softwareLang:"zh-CN";
         if(setting is "en" or "ja" or "ko") return setting;
-        // auto：统计中文块与英文块数量
+        // auto: Count the number of Chinese and English blocks
         int chinese=0,latin=0;
         foreach(var b in blocks)
         {
@@ -214,7 +214,7 @@ sealed partial class ScreenCaptureOverlay
         return majorityIsSoftware?foreign:softwareLang;
     }
 
-    /// <summary>自适应字号：在块宽换行下缩小字号直到总高不超过块高（下限 8）。</summary>
+    /// <summary>Adaptive font size: When a line breaks within a block, reduce the font size until the total height does not exceed the block height (minimum 8).</summary>
     double FitFontSize(string text,double boxW,double boxH)
     {
         if(string.IsNullOrEmpty(text)||boxW<4||boxH<4)return 12;

@@ -3,10 +3,10 @@ using System.Text.RegularExpressions;
 
 namespace BeeX.DeskNest;
 
-/// <summary>LRC 歌词格式解析</summary>
+/// <summary>Parses the LRC lyrics format.</summary>
 internal static partial class LyricsParser
 {
-    /// <summary>解析 LRC 文本为带时间轴的歌词行列表</summary>
+    /// <summary>Parses LRC text into a list of timestamped lyric lines.</summary>
     public static IReadOnlyList<LyricLine> Parse(string lrc)
     {
         var lines = new List<LyricLine>();
@@ -26,14 +26,14 @@ internal static partial class LyricsParser
         return lines.OrderBy(x => x.Time).ToList();
     }
 
-    /// <summary>读取 LRC 标签值（如 [ti:xxx] 中的 xxx）</summary>
+    /// <summary>Reads an LRC tag value (e.g. xxx in [ti:xxx]).</summary>
     public static string ReadLrcTag(string lrc, string tag)
     {
         var match = Regex.Match(lrc, @"\[" + Regex.Escape(tag) + @":([^\]]+)\]", RegexOptions.IgnoreCase);
         return match.Success ? MusicLyricsService.Clean(match.Groups[1].Value) : "";
     }
 
-    /// <summary>从缓存 LRC 中提取提供方信息</summary>
+    /// <summary>Extracts provider information from cached LRC.</summary>
     public static string? ReadProvider(string lrc)
     {
         var match = ProviderRegex().Match(lrc);

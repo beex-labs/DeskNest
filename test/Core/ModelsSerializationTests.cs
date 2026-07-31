@@ -7,7 +7,7 @@ namespace BeeX.DeskNest.Tests.Core;
 
 public class ModelsSerializationTests
 {
-    // ---- NestModel 默认值 ----
+    // ---- NestModel Default Values ----
 
     [Fact]
     public void NestModel_DefaultValues()
@@ -40,7 +40,7 @@ public class ModelsSerializationTests
         nest.IsEasterEggTemp.Should().BeFalse();
     }
 
-    // ---- TodoItem 默认值 ----
+    // ---- TodoItem Default Values ----
 
     [Fact]
     public void TodoItem_DefaultValues()
@@ -58,7 +58,7 @@ public class ModelsSerializationTests
         todo.Attachments.Should().BeEmpty();
     }
 
-    // ---- CaptureItem 默认值 ----
+    // ---- CaptureItem Default Values ----
 
     [Fact]
     public void CaptureItem_DefaultValues()
@@ -73,7 +73,7 @@ public class ModelsSerializationTests
         item.MarkdownPath.Should().BeEmpty();
     }
 
-    // ---- TagItem 默认值 ----
+    // ---- TagItem Default Values ----
 
     [Fact]
     public void TagItem_DefaultValues()
@@ -84,7 +84,7 @@ public class ModelsSerializationTests
         tag.Color.Should().Be("#FF8A00");
     }
 
-    // ---- CountdownItem 默认值 ----
+    // ---- CountdownItem Default Values ----
 
     [Fact]
     public void CountdownItem_DefaultValues()
@@ -96,7 +96,7 @@ public class ModelsSerializationTests
         item.Annual.Should().BeFalse();
     }
 
-    // ---- AppState 默认值 ----
+    // ---- AppState Default Values ----
 
     [Fact]
     public void AppState_DefaultValues()
@@ -134,7 +134,7 @@ public class ModelsSerializationTests
         state.Hotkeys["ToggleAll"].Should().Be("Ctrl + Alt + B");
     }
 
-    // ---- JSON 序列化/反序列化往返 ----
+    // ---- JSON Serialization/Deserialization Round Trip ----
 
     [Fact]
     public void NestModel_JsonRoundTrip()

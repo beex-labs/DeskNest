@@ -8,9 +8,9 @@ using Imaging=System.Drawing.Imaging;
 namespace BeeX.DeskNest;
 
 /// <summary>
-/// 自抓幀錄製：在後台線程按 fps 用 GDI 抓「當前 region」（BitBlt 會排除 WDA_EXCLUDEFROMCAPTURE 窗口），
-/// 把原始 BGRA 幀寫入 ffmpeg 的 stdin 管道編碼。按「有效時間」節拍，暫停期間不寫幀且不推進節拍，
-/// 保證暫停被折疊、與音頻時長一致。region 座標可在錄製中變更（第二期移動選框用）。
+/// Self-grabbed frame recording: a background thread grabs the current region via GDI at the target fps (BitBlt excludes WDA_EXCLUDEFROMCAPTURE windows)
+/// and writes the raw BGRA frames into ffmpeg's stdin pipe for encoding. It paces by "effective time": while paused it writes no frames and does not advance the beat,
+/// so pauses are collapsed and stay in sync with the audio duration. The region coordinates can change during recording (used by the movable selection feature).
 /// </summary>
 public sealed class ScreenFrameCapturer : IDisposable
 {
@@ -18,7 +18,7 @@ public sealed class ScreenFrameCapturer : IDisposable
     public volatile int RegionX;
     public volatile int RegionY;
     public volatile bool Paused;
-    public Action<Drawing.Bitmap>? ProcessFrame;   // 每幀抓屏後處理：馬賽克像素化 + 標注疊加
+    public Action<Drawing.Bitmap>? ProcessFrame;   // Per-frame post-processing after grab: mosaic pixelation + annotation overlay
     volatile bool running;
     Thread? thread;
     Stream? outStream;

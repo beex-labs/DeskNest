@@ -1,7 +1,7 @@
 using System.Text.Json.Serialization;
 
 namespace BeeX.DeskNest;
-// Launcher 格子已移除（由 Ctrl+Q 統一搜索窗 SearchPaletteWindow 接替）；枚舉成員保留以免數字序列化的舊存檔錯位，Load() 會清除殘留格子
+// The Launcher widget has been removed (replaced by the Ctrl+Q unified search window, SearchPaletteWindow); the enum member is kept so numeric serialization of old saves does not shift, and Load() clears leftover widgets
 public enum NestKind { Note, Todo, Folder, ManagedFiles, Capture, Music, Clock, Screenshot, Weather, Tags, SystemMonitor, Deadline, Countdown, Launcher, WorkTimer }
 public sealed class NestModel
 {
@@ -44,7 +44,7 @@ public sealed class NestModel
     public DateTime? LastWorkEndAlertDate { get; set; }
     public string MusicDisplayMode { get; set; } = "Cover";
     public double MusicLyricsOffsetSeconds { get; set; }
-    /// <summary>彩蛋遊戲臨時平台標記：啟動加載時無條件清掃，防止遊戲中斷後殘留成真實便箋</summary>
+    /// <summary>Marker for the temporary easter-egg game platform: unconditionally cleaned up on startup load, to prevent leftover notes after the game is interrupted.</summary>
     public bool IsEasterEggTemp { get; set; }
 }
 public sealed class TodoSubItem { public string Text { get; set; } = ""; public bool Done { get; set; } }
@@ -76,11 +76,11 @@ public sealed class AppState
     public bool ShowCollapsedLogo { get; set; } = true;
     public bool ShowCollapsedMusicPlayerLogo { get; set; } = true;
     public bool EasterEggUnlocked { get; set; }
-    /// <summary>快捷鍵默認值 V2 一次性遷移：顯示/隱藏回歸 Ctrl+Alt+B，截圖翻譯改為 Ctrl+Alt+Q（用戶自定義值不動）</summary>
+    /// <summary>Hotkey defaults V2 one-time migration: show/hide reverts to Ctrl+Alt+B, screenshot translation changes to Ctrl+Alt+Q (user-customized values are left untouched).</summary>
     public bool HotkeyDefaultsV2Migrated { get; set; }
     public bool UseSharedWidgetBackground { get; set; }
     public bool HeaderPinDefaultMigrated { get; set; }
-    /// <summary>已完成引導模式的機器指紋（MachineGuid）清單：每台新電腦首啟觸發一次引導，之後不再觸發；資料目錄搬到新電腦也會重新引導</summary>
+    /// <summary>List of machine fingerprints (MachineGuid) that have completed onboarding: each new machine triggers onboarding once on first launch and not again; moving the data directory to a new machine re-triggers onboarding.</summary>
     public List<string> OnboardingSeenMachines { get; set; } = [];
     public bool ShowFloatingBall { get; set; } = true;
     public bool FloatingBallSnapToEdge { get; set; } = true;
@@ -91,26 +91,26 @@ public sealed class AppState
     public string SharedWidgetBackgroundPath { get; set; } = "";
     public string ClipboardImageDirectory { get; set; } = "";
     public string ScreenshotDirectory { get; set; } = "";
-    /// <summary>截圖默認保存格式（png/jpg/bmp/gif/tiff），覆蓋层內仍可單次切換</summary>
+    /// <summary>Default screenshot save format (png/jpg/bmp/gif/tiff); can still be switched per-shot within the overlay.</summary>
     public string CaptureDefaultFormat { get; set; } = "png";
-    /// <summary>保存截圖時同時複製到剪貼板</summary>
+    /// <summary>Also copy to the clipboard when saving a screenshot.</summary>
     public bool CaptureCopyOnSave { get; set; }
-    /// <summary>錄屏默認幀率與默認倒數秒數（錄屏工具條內仍可單次切換）</summary>
+    /// <summary>Default recording frame rate and default countdown seconds (can still be switched per-shot within the recording toolbar).</summary>
     public int RecordingDefaultFps { get; set; } = 30;
     public int RecordingCountdownSec { get; set; }
-    /// <summary>隨記保留上限，超出自動刪除最舊</summary>
+    /// <summary>Upper limit of retained quick notes; the oldest are deleted automatically when exceeded.</summary>
     public int CaptureLimit { get; set; } = 100;
-    /// <summary>天氣自動刷新間隔（分鐘），0 表示不自動刷新</summary>
+    /// <summary>Weather auto-refresh interval (minutes); 0 means no auto-refresh.</summary>
     public int WeatherRefreshMinutes { get; set; } = 30;
-    /// <summary>新建待辦的默認提醒提前量（分鐘，0=準時）</summary>
+    /// <summary>Default reminder lead time for new todos (minutes, 0 = on time).</summary>
     public List<int> TodoDefaultReminderOffsets { get; set; } = [1440,0];
     public Dictionary<string,string> Hotkeys { get; set; } = new() { ["Note"]="",["Todo"]="",["MapFolder"]="",["Managed"]="",["CaptureFolder"]="",["QuickNote"]="",["Music"]="",["Clock"]="",["Screenshot"]="Ctrl + Alt + A",["ToggleAll"]="Ctrl + Alt + B",["CollapseAll"]="",["Weather"]="",["PinText"]="Ctrl + Alt + T",["MinimizeTransparent"]="Alt + X",["TranslateScreenshot"]="Ctrl + Alt + Q",["Launcher"]="Ctrl + Q" };
-    /// <summary>Ctrl+Q 統一搜索窗最近一次執行的結果（!! 前綴召回）</summary>
+    /// <summary>The result most recently run from the Ctrl+Q unified search window (recalled with the !! prefix).</summary>
     public string PaletteLastResult { get; set; } = "";
-    /// <summary>統一搜索窗上次拖動到的位置（null 表示未拖動過，喚起時居中）</summary>
+    /// <summary>Last position the unified search window was dragged to (null means never dragged, so it centers when invoked).</summary>
     public double? PaletteLeft { get; set; }
     public double? PaletteTop { get; set; }
-    /// <summary>Ctrl+Q 搜索窗空輸入時是否顯示指令指引下拉（熟悉指令的用戶可關閉保持簡約）</summary>
+    /// <summary>Whether the Ctrl+Q search window shows the command guide dropdown on empty input (users familiar with the commands can disable it for a cleaner look).</summary>
     public bool ShowSearchPaletteGuide { get; set; } = true;
     public List<string> ToolButtonOrder { get; set; } = [];
     public Dictionary<string,bool> ToolButtonVisibility { get; set; } = [];

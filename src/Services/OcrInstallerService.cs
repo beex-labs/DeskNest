@@ -14,9 +14,9 @@ using HorizontalAlignment=System.Windows.HorizontalAlignment;
 namespace BeeX.DeskNest;
 
 /// <summary>
-/// OCR 元件在线安装器：从 beex-ocr 仓库的 GitHub Release 下载固定名安装包，
-/// 解压到 BeeX 根目录 Components\beex-ocr。
-/// 主程序 exe 不内置任何 OCR 依赖，体积零增长；安装仅首次需要，之后完全离线。
+/// Online installer for the OCR component: downloads a fixed-name install package from the GitHub Release of the beex-ocr repo,
+/// extracting it to Components\beex-ocr under the BeeX root directory.
+/// The main exe bundles no OCR dependency, so its size does not grow; installation is only needed the first time and is fully offline afterwards.
 /// </summary>
 static class OcrInstallerService
 {
@@ -24,7 +24,7 @@ static class OcrInstallerService
 
     public static string InstallRoot=>BeeXPaths.OcrDir;
 
-    /// <summary>安装完成的判据：两个侧车 exe 和模型目录齐全。</summary>
+    /// <summary>Installation-complete criterion: both sidecar exes and the model directory are present.</summary>
     public static bool IsInstalled=>
         File.Exists(IoPath.Combine(InstallRoot,"BeeX_OCR.exe"))&&
         File.Exists(IoPath.Combine(InstallRoot,"BeeX_Formula.exe"))&&
@@ -32,7 +32,7 @@ static class OcrInstallerService
 
     static string StampPath=>InstallRoot+".stamp";
 
-    // ---- 後台安裝管理：下載掛後台不佔用前台（窗口可關），完成/失敗以非模態通知回報 ----
+    // ---- Background install management: the download runs in the background without blocking the foreground (the window can close); success/failure is reported via a non-modal notification ----
     static Task? installTask;
     static (string Phase,int Percent) lastProgress=("download",-1);
     public static bool Installing=>installTask is {IsCompleted:false};
@@ -40,7 +40,7 @@ static class OcrInstallerService
     public static event Action<(string Phase,int Percent)>? ProgressChanged;
     public static event Action<Exception?>? InstallFinished;
 
-    /// <summary>在 UI 線程調用：啟動後台下載/更新（已在下載則忽略），進度與完成事件在 UI 線程回調。</summary>
+    /// <summary>Call on the UI thread: start the background download/update (ignored if already downloading); progress and completion events are called back on the UI thread.</summary>
     public static void StartBackgroundInstall(string language)
     {
         if(Installing)return;
@@ -63,7 +63,7 @@ static class OcrInstallerService
         }
     }
 
-    /// <summary>安裝對話框（說明 → 啟動後台下載 → 可關窗掛後台）；若用戶留在窗內等到完成則返回 true 可直接續接原流程（如翻譯）。</summary>
+    /// <summary>Install dialog (explanation -> start background download -> window can close to run in background); if the user stays in the window until completion it returns true so the original flow (e.g. translation) can continue directly.</summary>
     public static bool ShowInstallDialog(string language)
     {
         if(OcrSidecarService.IsAvailable)return true;
@@ -92,7 +92,7 @@ static class OcrInstallerService
         };
         ProgressChanged+=onProgress;InstallFinished+=onFinished;
         dialog.Closed+=(_,_)=>{ProgressChanged-=onProgress;InstallFinished-=onFinished;};
-        // 關窗掛後台時提示用戶可在設定頁查看進度
+        // When closing the window to run in the background, tell the user progress can be viewed on the settings page
         void CloseToBackground(){var backgrounded=Installing;dialog.DialogResult=false;dialog.Close();if(backgrounded)BeeXDialog.Notify(null,T("安裝 OCR 辨識"),T("下載已轉入後台，可前往 設定 → 診斷與維護 查看進度。"),new AppState{Language=language});}
         cancel.Click+=(_,_)=>CloseToBackground();
         download.Click+=(_,_)=>{StartBackgroundInstall(language);EnterDownloadingUi();};
@@ -107,9 +107,9 @@ static class OcrInstallerService
     }
 
     /// <summary>
-    /// 更新检测：用 GitHub Release 附件的 Last-Modified/ETag 做指纹，
-    /// 安装时记录、之后 HEAD 请求对比；发新包只需重传 zip，无需改版本号/打 tag。
-    /// 旧安装无指纹时不打扰（返回 false）。
+    /// Update detection: uses the Last-Modified/ETag of the GitHub Release asset as a fingerprint,
+    /// recorded at install time and compared via a later HEAD request; publishing a new package only requires re-uploading the zip, with no version bump or tag.
+    /// Old installs without a fingerprint are not disturbed (returns false).
     /// </summary>
     public static async Task<bool> CheckUpdateAsync()
     {
@@ -132,7 +132,7 @@ static class OcrInstallerService
     static string ReadStamp(HttpResponseMessage response)=>
         response.Content.Headers.LastModified?.UtcDateTime.ToString("O")??response.Headers.ETag?.Tag??"";
 
-    /// <summary>下载并安装 OCR 元件。progress: (阶段文案, 0-100 进度，-1 表示不确定)。</summary>
+    /// <summary>Downloads and installs the OCR component. progress: (phase text, 0-100 progress, -1 means indeterminate).</summary>
     public static async Task InstallAsync(IProgress<(string Phase,int Percent)> progress,CancellationToken cancellation=default)
     {
         var tempZip=IoPath.Combine(IoPath.GetTempPath(),$"beex-ocr-install-{Guid.NewGuid():N}.zip");
@@ -164,7 +164,7 @@ static class OcrInstallerService
             if(Directory.Exists(tempDir))Directory.Delete(tempDir,recursive:true);
             ZipFile.ExtractToDirectory(tempZip,tempDir);
 
-            // 校验后原子替换旧安装
+            // Atomically replace the old install after verification
             if(!File.Exists(IoPath.Combine(tempDir,"BeeX_OCR.exe"))||
                !File.Exists(IoPath.Combine(tempDir,"BeeX_Formula.exe"))||
                !Directory.Exists(IoPath.Combine(tempDir,"models")))

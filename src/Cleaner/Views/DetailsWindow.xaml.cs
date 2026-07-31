@@ -43,7 +43,7 @@ public partial class DetailsWindow : Window
         var path = _program.FullRegistryPath;
         try
         {
-            // 写入 regedit 的 LastKey，使其打开时自动定位（Win10+ 各语言均接受 Computer\ 前缀）
+            // Enter the LastKey in regedit so that it automatically navigates to that location when opened (Windows 10 and later; the "Computer\" prefix is accepted in all languages)
             using var key = Registry.CurrentUser.CreateSubKey(
                 @"Software\Microsoft\Windows\CurrentVersion\Applets\Regedit");
             key?.SetValue("LastKey", $@"Computer\{path}");
