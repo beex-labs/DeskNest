@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>BeeX Audio Particles</title>
+<style>html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#0d1321}canvas{display:block;width:100vw;height:100vh}</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script src="../runtime.js"></script>
+<script>
+// Audio-reactive particle field: particles orbit slowly, kick outward on beats, glow with their
+// band's energy, and are attracted to the pointer (interactive wallpapers forward the real cursor).
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = window.BeeXWallpaper;
+const N = 260;
+const parts = [];
+let beatKick = 0;
+
+function fit() { canvas.width = innerWidth; canvas.height = innerHeight; }
+fit(); addEventListener('resize', fit);
+
+for (let i = 0; i < N; i++) {
+  parts.push({
+    x: Math.random(), y: Math.random(),
+    vx: (Math.random() - .5) * .02, vy: (Math.random() - .5) * .02,
+    band: i % 64,
+    hue: 20 + (i % 64) / 64 * 260,
+    size: .8 + Math.random() * 2.2,
+  });
+}
+
+W.onAudio((bands, beat) => { if (beat) beatKick = 1; });
+
+W.onTime((dt) => {
+  const w = canvas.width, h = canvas.height;
+  const bands = W.audio.bands, level = W.audio.level;
+  beatKick = Math.max(0, beatKick - dt * 2.5);
+
+  ctx.fillStyle = 'rgba(13,19,33,0.28)';
+  ctx.fillRect(0, 0, w, h);
+  ctx.globalCompositeOperation = 'lighter';
+
+  const px = W.pointer.x, py = W.pointer.y, pdown = W.pointer.down;
+  const cx = .5, cy = .5;
+
+  for (const p of parts) {
+    const e = bands[p.band] || 0;
+    // slow orbit around the centre + beat impulse away from it
+    const dxc = p.x - cx, dyc = p.y - cy;
+    const dist = Math.hypot(dxc, dyc) + 1e-4;
+    p.vx += (-dyc / dist) * .012 * dt * 60 * .016;
+    p.vy += (dxc / dist) * .012 * dt * 60 * .016;
+    p.vx += (dxc / dist) * beatKick * .05 * dt;
+    p.vy += (dyc / dist) * beatKick * .05 * dt;
+    // pointer attraction (stronger while pressed)
+    const dxp = px - p.x, dyp = py - p.y;
+    const dp = Math.hypot(dxp, dyp) + 1e-4;
+    if (dp < .35) {
+      const g = (pdown ? .5 : .15) * (1 - dp / .35) * dt;
+      p.vx += dxp / dp * g;
+      p.vy += dyp / dp * g;
+    }
+    p.vx *= .985; p.vy *= .985;
+    p.x += p.vx * dt * 3; p.y += p.vy * dt * 3;
+    if (p.x < -.05) p.x = 1.05; if (p.x > 1.05) p.x = -.05;
+    if (p.y < -.05) p.y = 1.05; if (p.y > 1.05) p.y = -.05;
+
+    const r = p.size * (1 + e * 3 + level);
+    const alpha = .25 + e * .75;
+    ctx.beginPath();
+    ctx.fillStyle = `hsla(${p.hue + level * 40},90%,${55 + e * 25}%,${alpha})`;
+    ctx.arc(p.x * w, p.y * h, r, 0, 6.2832);
+    ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+});
+</script>
+</body>
+</html>

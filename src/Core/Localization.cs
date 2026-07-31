@@ -18,6 +18,7 @@ static class Localization
     };
     static readonly Dictionary<string,(string cn,string en)> Words=new()
     {
+        ["場景編輯器"]=("场景编辑器","Scene editor"),
         ["常規"]=("常规","General"),["外觀"]=("外观","Appearance"),["文件格子"]=("文件格子","File widgets"),["功能格子"]=("功能格子","Feature widgets"),["待辦提醒"]=("待办提醒","Todo reminders"),["隨記圖庫"]=("随记图库","Capture library"),["音樂歌詞"]=("音乐歌词","Music & lyrics"),["快捷與交互"]=("快捷与交互","Shortcuts & interaction"),["診斷與維護"]=("诊断与维护","Diagnostics & maintenance"),["關於"]=("关于","About"),
         ["語言"]=("语言","Language"),["開機自動啟動"]=("开机自动启动","Start with Windows"),["登入 Windows 時自動啟動"]=("登录 Windows 时自动启动","Start with Windows"),["關閉主視窗時程式繼續留在系統匣。"]=("关闭主窗口时程序继续留在系统托盘。","Closing the main window keeps the app in the system tray."),["顯示提醒摘要"]=("显示提醒摘要","Show reminder summary"),["顯示待辦提醒詳情；Windows 鎖定時一律隱藏內容。"]=("显示待办提醒详情；Windows 锁定时始终隐藏内容。","Show todo reminder details; content is always hidden while Windows is locked."),
         ["應用主題"]=("应用主题","App theme"),["清透玻璃"]=("清透玻璃","Clear glass"),["亞克力磨砂"]=("清透玻璃","Clear glass"),["蜂蜜暖色"]=("蜂蜜暖色","Honey"),["深色"]=("深色","Dark"),["背景透明度"]=("背景透明度","Background opacity"),["背景透明度（0%–100%）"]=("背景透明度（0%–100%）","Background opacity (0%-100%)"),["全局字體"]=("全局字体","Global font"),["全局文字顏色"]=("全局文字颜色","Global text color"),["文字大小"]=("文字大小","Text size"),["視窗圓角"]=("窗口圆角","Window corners"),["圖標大小"]=("图标大小","Icon size"),["項目間距"]=("项目间距","Item spacing"),["顯示文件副檔名"]=("显示文件扩展名","Show file extensions"),

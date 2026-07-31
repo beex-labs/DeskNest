@@ -49,6 +49,7 @@ public sealed class WallpaperGalleryWindow : Window
 
     static readonly string[] VideoExt = { ".mp4", ".webm", ".mkv", ".mov", ".avi", ".m4v" };
     static readonly string[] ImageExt = { ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp" };
+    static readonly string[] WebExt = { ".html", ".htm" };
 
     public WallpaperGalleryWindow(DeskNestService service)
     {
@@ -58,9 +59,27 @@ public sealed class WallpaperGalleryWindow : Window
         foreground = dark ? Brushes.White : new SolidColorBrush(Color.FromRgb(13, 19, 33));
         cardBrush = new SolidColorBrush(Color.FromArgb(dark ? (byte)40 : (byte)235, dark ? (byte)255 : (byte)255, dark ? (byte)255 : (byte)255, dark ? (byte)255 : (byte)255));
         accent = new SolidColorBrush(Color.FromRgb(255, 138, 0));
+        EnsureBuiltins();
         BuildUi();
         RefreshLibrary();
         RefreshMonitors();
+    }
+
+    // Seeds the two built-in web wallpapers (nebula shader + audio particle field) so the library is never empty.
+    void EnsureBuiltins()
+    {
+        var added = false;
+        if (!State.WallpaperLibrary.Any(w => w.Path == "builtin:shader"))
+        {
+            State.WallpaperLibrary.Add(new WallpaperItem { Kind = WallpaperKind.Shader, Path = "builtin:shader", Name = L("星雲著色器", "星云着色器", "Nebula shader"), AudioReactive = true, Interactive = true });
+            added = true;
+        }
+        if (!State.WallpaperLibrary.Any(w => w.Path == "builtin:particles"))
+        {
+            State.WallpaperLibrary.Add(new WallpaperItem { Kind = WallpaperKind.Shader, Path = "builtin:particles", Name = L("音頻粒子場", "音频粒子场", "Audio particles"), AudioReactive = true, Interactive = true });
+            added = true;
+        }
+        if (added) service.Save();
     }
 
     void BuildUi()
@@ -103,10 +122,16 @@ public sealed class WallpaperGalleryWindow : Window
         var libRow = new Grid { Margin = new Thickness(0, 16, 0, 0) };
         libRow.ColumnDefinitions.Add(new ColumnDefinition());
         libRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        libRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         libRow.Children.Add(SectionHeader(L("壁紙庫", "壁纸库", "Library")));
+        var newScene = MakeButton(L("＋ 新建場景", "＋ 新建场景", "＋ New scene"));
+        newScene.Margin = new Thickness(0, 0, 8, 0);
+        newScene.Click += (_, _) => NewScene();
+        Grid.SetColumn(newScene, 1);
+        libRow.Children.Add(newScene);
         var import = MakeButton(L("＋ 導入壁紙", "＋ 导入壁纸", "＋ Import"));
         import.Click += (_, _) => Import();
-        Grid.SetColumn(import, 1);
+        Grid.SetColumn(import, 2);
         libRow.Children.Add(import);
         content.Children.Add(libRow);
         content.Children.Add(libraryPanel);
@@ -202,15 +227,34 @@ public sealed class WallpaperGalleryWindow : Window
         var thumbHost = new Border { Width = 150, Height = 84, CornerRadius = new CornerRadius(6), Background = new SolidColorBrush(Color.FromArgb(60, 0, 0, 0)), ClipToBounds = true, Child = thumb };
         stack.Children.Add(thumbHost);
         stack.Children.Add(new TextBlock { Text = item.Name, Foreground = foreground, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 150, Margin = new Thickness(2, 4, 2, 0) });
-        var kindText = item.Kind == WallpaperKind.Video ? L("影片", "视频", "Video") : item.Kind == WallpaperKind.Image ? L("圖片", "图片", "Image") : L("網頁", "网页", "Web");
+        var kindText = item.Kind switch
+        {
+            WallpaperKind.Video => L("影片", "视频", "Video"),
+            WallpaperKind.Image => L("圖片", "图片", "Image"),
+            WallpaperKind.Shader => L("著色器", "着色器", "Shader"),
+            WallpaperKind.Scene => L("場景", "场景", "Scene"),
+            _ => L("網頁", "网页", "Web")
+        };
         var footer = new Grid();
         footer.ColumnDefinitions.Add(new ColumnDefinition());
         footer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        footer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         footer.Children.Add(new TextBlock { Text = kindText, Foreground = foreground, Opacity = 0.6, FontSize = 11, VerticalAlignment = VerticalAlignment.Center });
-        var del = new Button { Content = L("移除", "移除", "Remove"), FontSize = 11, Background = Brushes.Transparent, Foreground = accent, BorderThickness = new Thickness(0), Cursor = Cursors.Hand, Padding = new Thickness(2, 0, 2, 0) };
-        del.Click += (_, _) => Delete(item);
-        Grid.SetColumn(del, 1);
-        footer.Children.Add(del);
+        if (item.Kind == WallpaperKind.Scene)
+        {
+            var edit = new Button { Content = L("編輯", "编辑", "Edit"), FontSize = 11, Background = Brushes.Transparent, Foreground = accent, BorderThickness = new Thickness(0), Cursor = Cursors.Hand, Padding = new Thickness(2, 0, 2, 0) };
+            edit.Click += (_, _) => OpenEditor(item);
+            Grid.SetColumn(edit, 1);
+            footer.Children.Add(edit);
+        }
+        // Built-ins are re-seeded on every gallery open, so hiding Remove avoids a delete/reappear loop.
+        if (!item.Path.StartsWith("builtin:", StringComparison.OrdinalIgnoreCase))
+        {
+            var del = new Button { Content = L("移除", "移除", "Remove"), FontSize = 11, Background = Brushes.Transparent, Foreground = accent, BorderThickness = new Thickness(0), Cursor = Cursors.Hand, Padding = new Thickness(2, 0, 2, 0) };
+            del.Click += (_, _) => Delete(item);
+            Grid.SetColumn(del, 2);
+            footer.Children.Add(del);
+        }
         stack.Children.Add(footer);
         return new Border { Width = 150, Margin = new Thickness(0, 0, 12, 12), Padding = new Thickness(8), CornerRadius = new CornerRadius(10), Background = cardBrush, Child = stack };
     }
@@ -235,7 +279,7 @@ public sealed class WallpaperGalleryWindow : Window
 
     void Import()
     {
-        var filter = L("壁紙檔案", "壁纸文件", "Wallpaper files") + "|*.mp4;*.webm;*.mkv;*.mov;*.avi;*.m4v;*.jpg;*.jpeg;*.png;*.gif;*.bmp;*.webp";
+        var filter = L("壁紙檔案", "壁纸文件", "Wallpaper files") + "|*.mp4;*.webm;*.mkv;*.mov;*.avi;*.m4v;*.jpg;*.jpeg;*.png;*.gif;*.bmp;*.webp;*.html;*.htm";
         var dialog = new OpenFileDialog { Multiselect = true, Filter = filter };
         if (dialog.ShowDialog(this) != true) return;
         foreach (var src in dialog.FileNames) ImportOne(src);
@@ -249,17 +293,65 @@ public sealed class WallpaperGalleryWindow : Window
         try
         {
             var ext = Path.GetExtension(src).ToLowerInvariant();
-            var kind = Array.IndexOf(ImageExt, ext) >= 0 ? WallpaperKind.Image : WallpaperKind.Video;
+            var kind = Array.IndexOf(ImageExt, ext) >= 0 ? WallpaperKind.Image
+                : Array.IndexOf(WebExt, ext) >= 0 ? WallpaperKind.Web : WallpaperKind.Video;
             var item = new WallpaperItem { Kind = kind, Name = Path.GetFileNameWithoutExtension(src), PlaybackRate = 1 };
+            if (kind == WallpaperKind.Web) { item.AudioReactive = true; item.Interactive = true; }
             var dir = Path.Combine(BeeXPaths.WallpapersDir, item.Id.ToString("N"));
             Directory.CreateDirectory(dir);
-            var dest = Path.Combine(dir, Path.GetFileName(src));
-            File.Copy(src, dest, true);
-            item.Path = dest;
+            if (kind == WallpaperKind.Web)
+            {
+                // Web wallpapers reference sibling assets (js/css/textures): copy the whole folder,
+                // unless it is unreasonably large (user picked a file from Downloads etc.).
+                var srcDir = Path.GetDirectoryName(src)!;
+                var files = Directory.GetFiles(srcDir, "*", SearchOption.AllDirectories);
+                if (files.Length <= 2000)
+                    foreach (var f in files)
+                    {
+                        var rel = Path.GetRelativePath(srcDir, f);
+                        var target = Path.Combine(dir, rel);
+                        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                        File.Copy(f, target, true);
+                    }
+                else
+                    File.Copy(src, Path.Combine(dir, Path.GetFileName(src)), true);
+                item.Path = Path.Combine(dir, Path.GetFileName(src));
+            }
+            else
+            {
+                var dest = Path.Combine(dir, Path.GetFileName(src));
+                File.Copy(src, dest, true);
+                item.Path = dest;
+            }
             item.Thumb = MakeThumb(item, dir);
             State.WallpaperLibrary.Add(item);
         }
         catch { }
+    }
+
+    void NewScene()
+    {
+        try
+        {
+            var item = new WallpaperItem { Kind = WallpaperKind.Scene, Name = L("未命名場景", "未命名场景", "Untitled scene"), AudioReactive = true, Interactive = true };
+            var dir = Path.Combine(BeeXPaths.WallpapersDir, item.Id.ToString("N"));
+            Directory.CreateDirectory(dir);
+            item.Path = Path.Combine(dir, "scene.json");
+            File.WriteAllText(item.Path, "{\n  \"name\": \"" + item.Name + "\",\n  \"background\": \"#0d1321\",\n  \"layers\": []\n}");
+            State.WallpaperLibrary.Add(item);
+            service.Save();
+            RefreshLibrary();
+            RefreshMonitors();
+            OpenEditor(item);
+        }
+        catch { }
+    }
+
+    void OpenEditor(WallpaperItem item)
+    {
+        var editor = new SceneEditorWindow(service, item);
+        editor.Saved += () => { RefreshLibrary(); RefreshMonitors(); };
+        editor.Show();
     }
 
     static string MakeThumb(WallpaperItem item, string dir)
@@ -267,6 +359,7 @@ public sealed class WallpaperGalleryWindow : Window
         try
         {
             if (item.Kind == WallpaperKind.Image) return item.Path;
+            if (item.Kind != WallpaperKind.Video) return "";
             var thumbs = FfmpegService.ExtractThumbs(item.Path, 0.2, 0.4, 1, 360, dir, "thumb");
             return thumbs.Count > 0 ? thumbs[0] : "";
         }

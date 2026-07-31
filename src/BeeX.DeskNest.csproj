@@ -57,4 +57,12 @@
       <LogicalName>BeeX.DeskNest.wwwroot.%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
+  <!-- Wallpaper web runtime (SDK, built-in shaders, scene runtime/editor): embedded and
+       self-extracted to Data\wallpaper-www by WallpaperWebAssets. -->
+  <ItemGroup>
+    <None Remove="Wallpaper\wwwroot\**" />
+    <EmbeddedResource Include="Wallpaper\wwwroot\**">
+      <LogicalName>BeeX.DeskNest.wallpaper.%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
 </Project>

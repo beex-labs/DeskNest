@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>BeeX Scene Editor</title>
+<style>
+:root{--bg:#0d1321;--panel:#151d30;--line:#26314d;--fg:#e8ecf4;--dim:#8b95ab;--accent:#ff8a00}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:13px 'Segoe UI',system-ui,sans-serif;overflow:hidden}
+#app{display:grid;grid-template-columns:230px 1fr 260px;height:100vh}
+.panel{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.panel:last-child{border-right:0;border-left:1px solid var(--line)}
+h3{margin:0;padding:12px 14px 8px;font-size:12px;letter-spacing:.08em;color:var(--dim);text-transform:uppercase}
+#layers{flex:1;overflow:auto;padding:0 8px}
+.layer{padding:8px 10px;margin:4px 0;border-radius:8px;background:#1c2540;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.layer.sel{outline:2px solid var(--accent)}
+.layer .del{color:#f66;cursor:pointer;padding:0 4px}
+.addrow{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px}
+button{background:#1c2540;color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:7px 8px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+#stageWrap{position:relative;display:flex;align-items:center;justify-content:center;background:#080c16;min-width:0}
+#stage{position:relative;width:100%;height:100%;overflow:hidden}
+#props{overflow:auto;padding:0 12px 16px}
+.field{margin:8px 0}
+.field label{display:block;color:var(--dim);margin-bottom:3px}
+.field input[type=text],.field input[type=number],.field select{width:100%;box-sizing:border-box;background:#0f1526;border:1px solid var(--line);color:var(--fg);border-radius:6px;padding:6px 8px}
+.field input[type=range]{width:100%}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#footer{padding:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px;border-top:1px solid var(--line)}
+.empty{color:var(--dim);padding:14px;text-align:center}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="panel">
+    <h3 id="tLayers">图层</h3>
+    <div id="layers"></div>
+    <div class="addrow">
+      <button data-add="image" id="tAddImg">＋图片</button>
+      <button data-add="video" id="tAddVid">＋视频</button>
+      <button data-add="text" id="tAddTxt">＋文字</button>
+      <button data-add="particles" id="tAddPar">＋粒子</button>
+    </div>
+  </div>
+  <div id="stageWrap"><div id="stage"></div></div>
+  <div class="panel">
+    <h3 id="tProps">属性</h3>
+    <div id="props"><div class="empty" id="tEmpty">选择一个图层</div></div>
+    <div id="footer">
+      <button id="btnClose">关闭</button>
+      <button class="primary" id="btnSave">保存</button>
+    </div>
+  </div>
+</div>
+<script src="runtime.js"></script>
+<script src="scene-core.js"></script>
+<script>
+// Scene editor: edits the JSON model, live-previews via SceneCore, and talks to the WPF host for
+// asset picking and saving (pickAsset / save messages; host replies assetPicked).
+let scene = { name: '未命名场景', background: '#0d1321', layers: [] };
+let sel = -1, handle = null, reqId = 0;
+const pendingAssets = {};
+const stage = document.getElementById('stage');
+
+function post(m) { try { chrome.webview.postMessage(m); } catch (e) { } }
+
+function preview() {
+  if (handle) handle.dispose();
+  handle = SceneCore.render(stage, scene);
+}
+
+function renderLayers() {
+  const box = document.getElementById('layers');
+  box.innerHTML = '';
+  scene.layers.forEach((l, i) => {
+    const div = document.createElement('div');
+    div.className = 'layer' + (i === sel ? ' sel' : '');
+    const name = document.createElement('span');
+    name.textContent = `${i + 1}. ${l.type}` + (l.type === 'text' ? `「${(l.text || '').slice(0, 8)}」` : '');
+    const del = document.createElement('span');
+    del.className = 'del'; del.textContent = '✕';
+    del.onclick = (e) => { e.stopPropagation(); scene.layers.splice(i, 1); if (sel >= scene.layers.length) sel = scene.layers.length - 1; refresh(); };
+    div.onclick = () => { sel = i; refresh(); };
+    div.append(name, del);
+    box.appendChild(div);
+  });
+}
+
+function field(label, input) {
+  const d = document.createElement('div');
+  d.className = 'field';
+  const l = document.createElement('label'); l.textContent = label;
+  d.append(l, input); return d;
+}
+function numInput(v, min, max, step, onc) {
+  const i = document.createElement('input');
+  i.type = 'number'; i.value = v; i.min = min; i.max = max; i.step = step;
+  i.oninput = () => { onc(parseFloat(i.value)); preview(); };
+  return i;
+}
+function slider(v, min, max, step, onc) {
+  const i = document.createElement('input');
+  i.type = 'range'; i.min = min; i.max = max; i.step = step; i.value = v;
+  i.oninput = () => { onc(parseFloat(i.value)); preview(); };
+  return i;
+}
+function textInput(v, onc) {
+  const i = document.createElement('input');
+  i.type = 'text'; i.value = v;
+  i.oninput = () => { onc(i.value); preview(); };
+  return i;
+}
+function selectInput(v, options, onc) {
+  const s = document.createElement('select');
+  for (const [val, label] of options) {
+    const o = document.createElement('option');
+    o.value = val; o.textContent = label; if (val === v) o.selected = true;
+    s.appendChild(o);
+  }
+  s.onchange = () => { onc(s.value); preview(); };
+  return s;
+}
+
+function renderProps() {
+  const box = document.getElementById('props');
+  box.innerHTML = '';
+  // scene-level
+  box.appendChild(field('场景名称', textInput(scene.name || '', v => scene.name = v)));
+  box.appendChild(field('背景色', textInput(scene.background || '#0d1321', v => scene.background = v)));
+  if (sel < 0 || !scene.layers[sel]) { const e = document.createElement('div'); e.className = 'empty'; e.textContent = '选择一个图层编辑属性'; box.appendChild(e); return; }
+  const L = scene.layers[sel];
+  if (L.type === 'image' || L.type === 'video') {
+    const b = document.createElement('button');
+    b.textContent = L.src ? '更换素材…' : '选择素材…';
+    b.onclick = () => {
+      const id = ++reqId;
+      pendingAssets[id] = (src) => { L.src = src; refresh(); };
+      post({ type: 'pickAsset', kind: L.type, requestId: id });
+    };
+    box.appendChild(field('素材', b));
+  }
+  if (L.type === 'text') {
+    box.appendChild(field('内容', textInput(L.text || '', v => L.text = v)));
+    box.appendChild(field('颜色', textInput(L.color || '#ffffff', v => L.color = v)));
+    box.appendChild(field('字号', numInput(L.fontSize || 48, 8, 400, 1, v => L.fontSize = v)));
+  }
+  if (L.type === 'particles') {
+    box.appendChild(field('数量', numInput(L.count || 120, 10, 600, 10, v => L.count = v)));
+    box.appendChild(field('颜色', textInput(L.color || '#ffb347', v => L.color = v)));
+  }
+  if (L.type !== 'particles') {
+    const r = document.createElement('div'); r.className = 'row2';
+    r.appendChild(field('X (0-1)', numInput(L.x ?? .5, 0, 1, .01, v => L.x = v)));
+    r.appendChild(field('Y (0-1)', numInput(L.y ?? .5, 0, 1, .01, v => L.y = v)));
+    box.appendChild(r);
+    box.appendChild(field('缩放', slider(L.scale ?? 1, .05, 4, .01, v => L.scale = v)));
+    box.appendChild(field('旋转 °', slider(L.rotate ?? 0, -180, 180, 1, v => L.rotate = v)));
+    box.appendChild(field('漂移', slider(L.drift ?? 0, 0, 2, .05, v => L.drift = v)));
+    box.appendChild(field('指针视差', slider(L.parallax ?? 0, 0, 2, .05, v => L.parallax = v)));
+  }
+  box.appendChild(field('不透明度', slider(L.opacity ?? 1, 0, 1, .01, v => L.opacity = v)));
+  // audio binding
+  L.audio = L.audio || {};
+  box.appendChild(field('音频绑定', selectInput(L.audio.target || '', [['', '无'], ['scale', '缩放'], ['opacity', '不透明度'], ['glow', '发光']], v => { if (v) L.audio.target = v; else delete L.audio.target; })));
+  box.appendChild(field('频段', selectInput(L.audio.band || 'low', [['low', '低频'], ['mid', '中频'], ['high', '高频'], ['level', '总能量'], ['beat', '节拍']], v => L.audio.band = v)));
+  box.appendChild(field('强度', slider(L.audio.amount ?? .3, 0, 2, .05, v => L.audio.amount = v)));
+}
+
+function refresh() { renderLayers(); renderProps(); preview(); }
+
+document.querySelectorAll('[data-add]').forEach(b => b.onclick = () => {
+  const type = b.getAttribute('data-add');
+  const L = { type, x: .5, y: .5, scale: 1, opacity: 1 };
+  if (type === 'text') { L.text = '你好，BeeX'; L.fontSize = 64; }
+  if (type === 'particles') { L.count = 120; L.audio = { target: 'scale', band: 'low', amount: .3 }; }
+  scene.layers.push(L);
+  sel = scene.layers.length - 1;
+  refresh();
+  if (type === 'image' || type === 'video') {
+    const id = ++reqId;
+    pendingAssets[id] = (src) => { L.src = src; refresh(); };
+    post({ type: 'pickAsset', kind: type, requestId: id });
+  }
+});
+
+document.getElementById('btnSave').onclick = () => post({ type: 'save', json: JSON.stringify(scene, null, 2) });
+document.getElementById('btnClose').onclick = () => post({ type: 'closeEditor' });
+
+chrome.webview.addEventListener('message', e => {
+  const m = e.data || {};
+  if (m.type === 'assetPicked' && pendingAssets[m.requestId]) { pendingAssets[m.requestId](m.src); delete pendingAssets[m.requestId]; }
+  else if (m.type === 'loadScene') { try { scene = JSON.parse(m.json); } catch (err) { } sel = scene.layers.length ? 0 : -1; refresh(); }
+  else if (m.type === 'locale') {
+    // minimal l10n: host sends zh-TW / zh-CN / en
+    const zhTw = { tLayers: '圖層', tAddImg: '＋圖片', tAddVid: '＋影片', tAddTxt: '＋文字', tAddPar: '＋粒子', tProps: '屬性', btnSave: '保存', btnClose: '關閉' };
+    const en = { tLayers: 'Layers', tAddImg: '+Image', tAddVid: '+Video', tAddTxt: '+Text', tAddPar: '+Particles', tProps: 'Properties', btnSave: 'Save', btnClose: 'Close' };
+    const map = m.value === 'en' ? en : m.value === 'zh-TW' ? zhTw : null;
+    if (map) for (const id in map) { const el = document.getElementById(id); if (el) el.textContent = map[id]; }
+  }
+});
+
+// Boot: ask host for the scene (also covered by host pushing loadScene after ready).
+refresh();
+</script>
+</body>
+</html>

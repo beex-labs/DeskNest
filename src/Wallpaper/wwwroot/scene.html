@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>BeeX Scene Wallpaper</title>
+<style>html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#0d1321}#stage{position:relative;width:100vw;height:100vh;overflow:hidden}</style>
+</head>
+<body>
+<div id="stage"></div>
+<script src="runtime.js"></script>
+<script src="scene-core.js"></script>
+<script>
+// Loads scene.json from the wallpaper item's virtual host (?scene=https://item.beex/scene.json).
+(async function () {
+  const url = new URLSearchParams(location.search).get('scene') || 'https://item.beex/scene.json';
+  try {
+    const scene = await (await fetch(url, { cache: 'no-store' })).json();
+    SceneCore.render(document.getElementById('stage'), scene);
+  } catch (e) {
+    document.body.style.background = '#1a1030';
+  }
+})();
+</script>
+</body>
+</html>

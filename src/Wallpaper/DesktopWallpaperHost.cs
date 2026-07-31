@@ -46,10 +46,15 @@ static class DesktopWallpaperHost
         // Undocumented request that makes the shell split off a background host window behind the icon layer.
         SendMessageTimeout(progman, 0x052C, (IntPtr)0xD, (IntPtr)0x1, SmtoNormal, 1000, out _);
 
+        // Win11 24H2+: the icon view stays inside Progman and the spawned WorkerW is a Progman child placed
+        // behind it, so that child is the background host. Older builds never parent a WorkerW under Progman.
+        var childWorker = FindWindowEx(progman, IntPtr.Zero, "WorkerW", null);
+        if (childWorker != IntPtr.Zero) return childWorker;
+
         var host = IntPtr.Zero;
         EnumWindows((top, _) =>
         {
-            // The background host is the sibling that follows the window owning the icon view (SHELLDLL_DefView).
+            // Pre-24H2: the background host is the sibling that follows the window owning the icon view (SHELLDLL_DefView).
             if (FindWindowEx(top, IntPtr.Zero, "SHELLDLL_DefView", null) != IntPtr.Zero)
                 host = FindWindowEx(IntPtr.Zero, top, "WorkerW", null);
             return true;
