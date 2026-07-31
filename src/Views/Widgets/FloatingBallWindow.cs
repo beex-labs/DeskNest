@@ -10,6 +10,7 @@ using WpfColor=System.Windows.Media.Color;
 using WpfContextMenu=System.Windows.Controls.ContextMenu;
 using WpfImage=System.Windows.Controls.Image;
 using WpfMenuItem=System.Windows.Controls.MenuItem;
+using Forms=System.Windows.Forms;
 
 namespace BeeX.DeskNest;
 
@@ -71,9 +72,20 @@ namespace BeeX.DeskNest;
 
     void Place()
     {
-        var work=SystemParameters.WorkArea;
-        Left=!double.IsFinite(service.State.FloatingBallLeft)||service.State.FloatingBallLeft<0?work.Right-Width-28:Math.Clamp(service.State.FloatingBallLeft,work.Left,work.Right-Width);
-        Top=!double.IsFinite(service.State.FloatingBallTop)||service.State.FloatingBallTop<0?work.Bottom-Height-96:Math.Clamp(service.State.FloatingBallTop,work.Top,work.Bottom-Height);
+        var vs=VirtualScreenBounds();
+        var savedL=service.State.FloatingBallLeft;var savedT=service.State.FloatingBallTop;
+        // -1/-1 為未設定的默認哨兵；其餘（含左側副屏的負座標）視為已保存位置，鉗進當前虛擬桌面（副屏被拔除時自動拉回可見區）
+        var hasSaved=double.IsFinite(savedL)&&double.IsFinite(savedT)&&!(savedL==-1&&savedT==-1);
+        if(hasSaved)
+        {
+            Left=Math.Clamp(savedL,vs.Left,Math.Max(vs.Left,vs.Right-Width));
+            Top=Math.Clamp(savedT,vs.Top,Math.Max(vs.Top,vs.Bottom-Height));
+        }
+        else
+        {
+            var work=SystemParameters.WorkArea;
+            Left=work.Right-Width-28;Top=work.Bottom-Height-96;
+        }
     }
 
     void OnLeftDown(object sender,MouseButtonEventArgs e)
@@ -93,7 +105,7 @@ namespace BeeX.DeskNest;
         dragging=true;
         Left+=delta.X;
         Top+=delta.Y;
-        SnapInsideWorkArea();
+        ClampToVirtualScreen();
     }
 
     void OnLeftUp(object sender,MouseButtonEventArgs e)
@@ -112,21 +124,38 @@ namespace BeeX.DeskNest;
         e.Handled=true;
     }
 
-    void SnapInsideWorkArea()
+    void ClampToVirtualScreen()
     {
-        var work=SystemParameters.WorkArea;
-        Left=Math.Clamp(Left,work.Left,work.Right-Width);
-        Top=Math.Clamp(Top,work.Top,work.Bottom-Height);
+        var vs=VirtualScreenBounds();
+        Left=Math.Clamp(Left,vs.Left,Math.Max(vs.Left,vs.Right-Width));
+        Top=Math.Clamp(Top,vs.Top,Math.Max(vs.Top,vs.Bottom-Height));
     }
 
     void SnapToEdgeIfNeeded()
     {
         if(!service.State.FloatingBallSnapToEdge)return;
-        var work=SystemParameters.WorkArea;
+        var work=CurrentScreenWorkArea();
         var leftDistance=Math.Abs(Left-work.Left);
         var rightDistance=Math.Abs(work.Right-(Left+Width));
         Left=leftDistance<=rightDistance?work.Left+8:work.Right-Width-8;
         Top=Math.Clamp(Top,work.Top+8,work.Bottom-Height-8);
+    }
+
+    // 整個虛擬桌面（含所有顕示器，DIU 單位）：拖動時按此鉗制，允許把球拖到任意副屏
+    static Rect VirtualScreenBounds()=>new(SystemParameters.VirtualScreenLeft,SystemParameters.VirtualScreenTop,SystemParameters.VirtualScreenWidth,SystemParameters.VirtualScreenHeight);
+
+    // 球當前所在顕示器的工作區（DIU）：用視窗 DPI 把球心 DIU→物理像素定位螢幕，再把該螢幕工作區換算回 DIU
+    Rect CurrentScreenWorkArea()
+    {
+        try
+        {
+            var dpi=VisualTreeHelper.GetDpi(this);
+            var cx=(int)((Left+Width/2)*dpi.DpiScaleX);
+            var cy=(int)((Top+Height/2)*dpi.DpiScaleY);
+            var wa=Forms.Screen.FromPoint(new System.Drawing.Point(cx,cy)).WorkingArea;
+            return new Rect(wa.Left/dpi.DpiScaleX,wa.Top/dpi.DpiScaleY,wa.Width/dpi.DpiScaleX,wa.Height/dpi.DpiScaleY);
+        }
+        catch{return SystemParameters.WorkArea;}
     }
 
     public void ApplyPreferences()
