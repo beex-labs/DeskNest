@@ -54,6 +54,7 @@ public sealed partial class DeskNestService
         menu.Items.Add(new System.Windows.Controls.Separator());
         Header(L("快速操作","快速操作","Quick actions"));
         menu.Items.Add(Item(L("一鍵整理桌面布局","一键整理桌面布局","Arrange desktop layout"),ArrangeDesktopLayout));
+        menu.Items.Add(Item(L("快速啟動    Ctrl+Q","快速启动    Ctrl+Q","Quick launcher    Ctrl+Q"),ShowSearchPalette));
         menu.Items.Add(Item(L("顯示 / 隱藏全部","显示 / 隐藏全部","Show / hide all"),ToggleAll));
         menu.Items.Add(Item(L("摺疊 / 展開全部","折叠 / 展开全部","Collapse / expand all"),ToggleCollapseAll));
         menu.Items.Add(Item(L("視窗透明","窗口透明","Window transparency"),ShowWindowTransparency));
@@ -70,7 +71,6 @@ public sealed partial class DeskNestService
         menu.Items.Add(Item(L("映射資料夾","映射文件夹","Map folder"),AddFolder));
         menu.Items.Add(Item(L("標籤","标签","Tags"),()=>Add(NestKind.Tags)));
         menu.Items.Add(Item(L("日程倒數","日程倒数","Countdown"),()=>Add(NestKind.Countdown)));
-        menu.Items.Add(Item(L("快速啟動","快速启动","Quick launcher"),()=>Add(NestKind.Launcher)));
         menu.Items.Add(Item(L("上下班提醒","上下班提醒","Work timer"),()=>Add(NestKind.WorkTimer)));
         menu.Items.Add(Item(L("系統監控","系统监控","System monitor"),()=>Add(NestKind.SystemMonitor)));
         menu.Items.Add(new System.Windows.Controls.Separator());

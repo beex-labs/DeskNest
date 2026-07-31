@@ -27,6 +27,9 @@ public sealed partial class DeskNestService : IDisposable
     Window? menuActivator;
     WindowTransparencyWindow? transparencyWindow;
     BeeXCleaner.CleanerWindow? cleanerWindow;
+    SearchPaletteWindow? searchPalette;
+    /// <summary>自研全盤文件索引（MFT/USN，Everything 原理復刻），供 Ctrl+Q 統一搜索窗使用</summary>
+    public FileIndexService FileIndex { get; } = new();
     public WindowTransparencyService Transparency { get; } = new();
     DispatcherTimer? clipboardTimer,saveTimer;string lastClipboard="",lastClipboardImageHash="",lastClipboardFileSignature="";readonly HashSet<Guid> reminded=[];bool sessionLocked;
     public AppState State { get; private set; } = new();
@@ -47,6 +50,7 @@ public sealed partial class DeskNestService : IDisposable
         ApplyTrayTheme();
         ApplyFloatingBallVisibility();
         RebuildHotkeys();
+        FileIndex.Start();
         clipboardTimer=new DispatcherTimer{Interval=TimeSpan.FromMilliseconds(800)};clipboardTimer.Tick+=(_,_)=>{PollClipboard();CheckReminders();};clipboardTimer.Start();
         foreach (var nest in State.Nests) Open(nest);
         if(NeedsOnboarding())ShowOnboarding();
@@ -55,6 +59,8 @@ public sealed partial class DeskNestService : IDisposable
     public void ShowControl(){if(control is null||!control.IsLoaded)control=new ControlWindow(this);control.RefreshList();control.RefreshFeatures();Localization.Apply(control,State.Language);control.Show();control.Activate();}
     public void ShowSettings(){if(settings is null||!settings.IsLoaded)settings=new SettingsWindow(this);settings.LoadState();settings.Show();settings.Activate();}
     public void ShowWindowTransparency(){if(transparencyWindow is null||!transparencyWindow.IsLoaded)transparencyWindow=new WindowTransparencyWindow(this,Transparency);transparencyWindow.ShowTool();}
+    /// <summary>Ctrl+Q 全局統一搜索窗（原快速啟動格子的繼任者）</summary>
+    public void ShowSearchPalette(){if(searchPalette is null||!searchPalette.IsLoaded)searchPalette=new SearchPaletteWindow(this);searchPalette.ShowPalette();}
     // BeeX 系统清理组件：卸载程序、清理 HKLM / Program Files 残留需要管理员权限.
     // 已提权则进程内打开；未提权则以管理员身份重新拉起自身 --cleaner 独立模式；UAC 取消则退回非提权打开。
     public void ShowCleaner()
@@ -207,7 +213,6 @@ public sealed partial class DeskNestService : IDisposable
         NestKind.Weather=>new System.Windows.Size(260,190),
         NestKind.Clock=>new System.Windows.Size(260,200),
         NestKind.Folder or NestKind.ManagedFiles=>new System.Windows.Size(280,180),
-        NestKind.Launcher=>new System.Windows.Size(360,150),
         NestKind.SystemMonitor=>new System.Windows.Size(320,260),
         _=>new System.Windows.Size(260,180)
     };
@@ -231,7 +236,7 @@ public sealed partial class DeskNestService : IDisposable
     internal NestModel AddEasterEggPlatform(int index){var n=new NestModel{Kind=NestKind.Note,Title=Localization.T("蜂巢平台",State.Language)+" "+(index+1),IsEasterEggTemp=true,Skin=State.Theme,Opacity=State.WidgetOpacity,FontFamily=ContentFontFamily(),FontSize=ContentFontSize(),FontColor=State.GlobalFontColor,Left=200+index*30,Top=200+index*30,Width=300,Height=200};State.Nests.Add(n);Open(n);return n;}
     internal void HideFloatingBallForGame(){if(floatingBall is {IsLoaded:true})floatingBall.Hide();}
     internal void EnsureEasterEggEntry(){control?.EnsureEasterEggButton();}
-    void RebuildHotkeys(){hotkey?.Dispose();hotkey=null;if(hotkeySuspendCount>0)return;var actions=new Dictionary<string,(string Shortcut,Action Action)>{["Note"]=(State.Hotkeys.GetValueOrDefault("Note",""),()=>Add(NestKind.Note)),["Todo"]=(State.Hotkeys.GetValueOrDefault("Todo",""),()=>Add(NestKind.Todo)),["MapFolder"]=(State.Hotkeys.GetValueOrDefault("MapFolder",""),AddFolder),["Managed"]=(State.Hotkeys.GetValueOrDefault("Managed",""),AddManagedFiles),["CaptureFolder"]=(State.Hotkeys.GetValueOrDefault("CaptureFolder",""),OpenCaptureFolder),["QuickNote"]=(State.Hotkeys.GetValueOrDefault("QuickNote",""),()=>Add(NestKind.Capture)),["Music"]=(State.Hotkeys.GetValueOrDefault("Music",""),()=>Add(NestKind.Music)),["Clock"]=(State.Hotkeys.GetValueOrDefault("Clock",""),()=>Add(NestKind.Clock)),["Screenshot"]=(State.Hotkeys.GetValueOrDefault("Screenshot","Ctrl + Alt + A"),()=>CaptureScreen()),["ToggleAll"]=(State.Hotkeys.GetValueOrDefault("ToggleAll","Ctrl + Alt + B"),ToggleAll),["CollapseAll"]=(State.Hotkeys.GetValueOrDefault("CollapseAll",""),ToggleCollapseAll),["Weather"]=(State.Hotkeys.GetValueOrDefault("Weather",""),()=>Add(NestKind.Weather)),["PinText"]=(State.Hotkeys.GetValueOrDefault("PinText","Ctrl + Alt + T"),PinClipboardText),["MinimizeTransparent"]=(State.Hotkeys.GetValueOrDefault("MinimizeTransparent","Alt + X"),MinimizeAllTransparentWindows),["TranslateScreenshot"]=(State.Hotkeys.GetValueOrDefault("TranslateScreenshot","Ctrl + Alt + Q"),CaptureScreenForTranslation)};hotkey=new HotkeyWindow(actions);}
+    void RebuildHotkeys(){hotkey?.Dispose();hotkey=null;if(hotkeySuspendCount>0)return;var actions=new Dictionary<string,(string Shortcut,Action Action)>{["Note"]=(State.Hotkeys.GetValueOrDefault("Note",""),()=>Add(NestKind.Note)),["Todo"]=(State.Hotkeys.GetValueOrDefault("Todo",""),()=>Add(NestKind.Todo)),["MapFolder"]=(State.Hotkeys.GetValueOrDefault("MapFolder",""),AddFolder),["Managed"]=(State.Hotkeys.GetValueOrDefault("Managed",""),AddManagedFiles),["CaptureFolder"]=(State.Hotkeys.GetValueOrDefault("CaptureFolder",""),OpenCaptureFolder),["QuickNote"]=(State.Hotkeys.GetValueOrDefault("QuickNote",""),()=>Add(NestKind.Capture)),["Music"]=(State.Hotkeys.GetValueOrDefault("Music",""),()=>Add(NestKind.Music)),["Clock"]=(State.Hotkeys.GetValueOrDefault("Clock",""),()=>Add(NestKind.Clock)),["Screenshot"]=(State.Hotkeys.GetValueOrDefault("Screenshot","Ctrl + Alt + A"),()=>CaptureScreen()),["ToggleAll"]=(State.Hotkeys.GetValueOrDefault("ToggleAll","Ctrl + Alt + B"),ToggleAll),["CollapseAll"]=(State.Hotkeys.GetValueOrDefault("CollapseAll",""),ToggleCollapseAll),["Weather"]=(State.Hotkeys.GetValueOrDefault("Weather",""),()=>Add(NestKind.Weather)),["PinText"]=(State.Hotkeys.GetValueOrDefault("PinText","Ctrl + Alt + T"),PinClipboardText),["MinimizeTransparent"]=(State.Hotkeys.GetValueOrDefault("MinimizeTransparent","Alt + X"),MinimizeAllTransparentWindows),["TranslateScreenshot"]=(State.Hotkeys.GetValueOrDefault("TranslateScreenshot","Ctrl + Alt + Q"),CaptureScreenForTranslation),["Launcher"]=(State.Hotkeys.GetValueOrDefault("Launcher","Ctrl + Q"),ShowSearchPalette)};hotkey=new HotkeyWindow(actions);}
     /// <summary>供編輯器等焦點窗口使用：暫時註銷全局熱鍵，避免與編輯器快捷鍵衝突（引用計數）。</summary>
     public void SuspendGlobalHotkeys(){hotkeySuspendCount++;if(hotkeySuspendCount==1)RebuildHotkeys();}
     public void ResumeGlobalHotkeys(){if(hotkeySuspendCount==0)return;hotkeySuspendCount--;if(hotkeySuspendCount==0)RebuildHotkeys();}
@@ -285,14 +290,14 @@ public sealed partial class DeskNestService : IDisposable
         return "";
     }
     public void ResetPreferences(){var keepStartup=State.StartWithWindows;State.WidgetOpacity=.5;State.Theme="Acrylic";State.ThemePreset="Clear";State.GlobalFontFamily="Microsoft JhengHei UI";State.GlobalFontSize=14;State.GlobalFontColor="#0D1321";State.InterfaceFontFamily=State.GlobalFontFamily;State.InterfaceFontSize=14;State.ContentFontFamily=State.GlobalFontFamily;State.ContentFontSize=14;State.CornerRadius=18;State.IconSize=30;State.ItemSpacing=10;State.ShowFileExtensions=true;State.ShowFloatingBall=true;State.FloatingBallSnapToEdge=true;State.ShowCollapsedLogo=true;State.ShowCollapsedMusicPlayerLogo=true;State.FloatingBallOpacity=State.WidgetOpacity;State.FloatingBallHiddenUntil=null;State.StartWithWindows=keepStartup;ApplyPreferences();}
-    static string? MultiOpenKey(NestKind kind)=>kind switch{NestKind.Note=>"Note",NestKind.Todo=>"Todo",NestKind.Folder=>"MapFolder",NestKind.ManagedFiles=>"Managed",NestKind.Capture=>"QuickNote",NestKind.Music=>"Music",NestKind.Clock=>"Clock",NestKind.Weather=>"Weather",NestKind.Tags=>"Tags",NestKind.SystemMonitor=>"SystemMonitor",NestKind.Countdown=>"Countdown",NestKind.Launcher=>"Launcher",NestKind.WorkTimer=>"WorkTimer",_=>null};
+    static string? MultiOpenKey(NestKind kind)=>kind switch{NestKind.Note=>"Note",NestKind.Todo=>"Todo",NestKind.Folder=>"MapFolder",NestKind.ManagedFiles=>"Managed",NestKind.Capture=>"QuickNote",NestKind.Music=>"Music",NestKind.Clock=>"Clock",NestKind.Weather=>"Weather",NestKind.Tags=>"Tags",NestKind.SystemMonitor=>"SystemMonitor",NestKind.Countdown=>"Countdown",NestKind.WorkTimer=>"WorkTimer",_=>null};
     // 默认所有组件单实例：仅当该功能在设置中开启「允许多开」时才可建立多个。
     public bool AllowMultiOpen(NestKind kind){var key=MultiOpenKey(kind);return key==null||State.ToolButtonMultiOpen.GetValueOrDefault(key,false);}
     bool TryFocusSingleton(NestKind kind){if(AllowMultiOpen(kind))return false;var existing=State.Nests.FirstOrDefault(n=>n.Kind==kind);if(existing==null)return false;SetVisible(existing,true);return true;}
     public void Add(NestKind kind)
     {
         if(TryFocusSingleton(kind))return;
-        var defaultSize=kind switch{NestKind.SystemMonitor=>(380d,220d),NestKind.Launcher=>(380d,230d),NestKind.Music=>(340d,250d),NestKind.Clock=>(300d,280d),NestKind.Weather=>(300d,300d),NestKind.Screenshot=>(320d,300d),NestKind.Tags=>(320d,290d),NestKind.Note=>(340d,320d),NestKind.Countdown=>(340d,330d),NestKind.WorkTimer=>(360d,360d),NestKind.Todo=>(420d,440d),_=>(340d,360d)};
+        var defaultSize=kind switch{NestKind.SystemMonitor=>(380d,220d),NestKind.Music=>(340d,250d),NestKind.Clock=>(300d,280d),NestKind.Weather=>(300d,300d),NestKind.Screenshot=>(320d,300d),NestKind.Tags=>(320d,290d),NestKind.Note=>(340d,320d),NestKind.Countdown=>(340d,330d),NestKind.WorkTimer=>(360d,360d),NestKind.Todo=>(420d,440d),_=>(340d,360d)};
         var n = new NestModel { Kind = kind, Title = Localization.DefaultTitle(kind), Skin=State.Theme, Opacity=State.WidgetOpacity, FontFamily=ContentFontFamily(), FontSize=kind==NestKind.WorkTimer?Math.Max(20,ContentFontSize()):ContentFontSize(), FontColor=State.GlobalFontColor, Left = 120 + State.Nests.Count * 24, Top = 120 + State.Nests.Count * 24, Width=defaultSize.Item1, Height=defaultSize.Item2 };
         State.Nests.Add(n); Save(); Open(n); control?.RefreshList(); settings?.RefreshFeatureNests();
     }
@@ -364,14 +369,24 @@ public sealed partial class DeskNestService : IDisposable
     public IEnumerable<Rect> GetWidgetBounds(Guid exceptId)=>windows.Where(x=>x.Key!=exceptId&&x.Value.IsVisible).Select(x=>new Rect(x.Value.Left,x.Value.Top,x.Value.ActualWidth,x.Value.ActualHeight)).ToList();
     public void SetStartup(bool enabled)
     {
-        using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true);
-        if (enabled) key?.SetValue("BeeX DeskNest", $"\"{Environment.ProcessPath}\" --tray"); else key?.DeleteValue("BeeX DeskNest", false);
+        // 主程式已改為 requireAdministrator：提權程式寫 Run 鍵會被 Windows 登入時靜默跳過，
+        // 改用計劃任務（/RL HIGHEST）實現開機自啟；同時清掉舊版遺留的 Run 鍵。
+        try { using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true); key?.DeleteValue("BeeX DeskNest", false); } catch { }
+        try
+        {
+            var info = enabled
+                ? new System.Diagnostics.ProcessStartInfo("schtasks.exe", $"/Create /F /RL HIGHEST /SC ONLOGON /TN \"BeeX DeskNest\" /TR \"\\\"{Environment.ProcessPath}\\\" --tray\"")
+                : new System.Diagnostics.ProcessStartInfo("schtasks.exe", "/Delete /F /TN \"BeeX DeskNest\"");
+            info.UseShellExecute = false; info.CreateNoWindow = true;
+            System.Diagnostics.Process.Start(info)?.WaitForExit(5000);
+        }
+        catch { }
         State.StartWithWindows = enabled; Save();
     }
     public void CaptureScreen(Action? closed=null) { ScreenCaptureOverlay.Begin(ScreenshotDirectory,path => { try{if(System.Windows.Clipboard.ContainsImage()){var image=System.Windows.Clipboard.GetImage();if(image!=null){using var memory=new MemoryStream();var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(image));encoder.Save(memory);lastClipboardImageHash=Convert.ToHexString(SHA256.HashData(memory.ToArray()));}}}catch{}var capture=State.Nests.FirstOrDefault(n=>n.Kind==NestKind.Capture);if(capture!=null){capture.Captures.Insert(0,new CaptureItem{Text="螢幕截圖",ImagePath=path,Source="Manual"});TrimCaptures(capture);if(windows.TryGetValue(capture.Id,out var w))w.RefreshData();Save();} },closed,State.Language); }
     // 翻譯截圖：複用普通截圖覆蓋層，但框選完成後自動觸發覆蓋層內建的原位翻譯（保留選框，拖動/縮放自動重譯），不再關窗後另彈貼圖窗口
     public void CaptureScreenForTranslation() { ScreenCaptureOverlay.Begin(ScreenshotDirectory,path => { try{if(System.Windows.Clipboard.ContainsImage()){var image=System.Windows.Clipboard.GetImage();if(image!=null){using var memory=new MemoryStream();var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(image));encoder.Save(memory);lastClipboardImageHash=Convert.ToHexString(SHA256.HashData(memory.ToArray()));}}}catch{}var capture=State.Nests.FirstOrDefault(n=>n.Kind==NestKind.Capture);if(capture!=null){capture.Captures.Insert(0,new CaptureItem{Text="螢幕截圖",ImagePath=path,Source="Manual"});TrimCaptures(capture);if(windows.TryGetValue(capture.Id,out var w))w.RefreshData();Save();} },closed:null,language:State.Language,autoTranslateOnSelect:true); }
     public void PinClipboardText(){try{if(System.Windows.Clipboard.ContainsText()){var text=System.Windows.Clipboard.GetText();if(!string.IsNullOrWhiteSpace(text))TextPinWindow.Pin(text.Trim());}}catch{}}
-    public void Exit() { transparencyWindow?.ShutdownTool();floatingBall?.Close();foreach (var w in windows.Values) { w.AllowClose = true; w.Close(); } tray!.Visible = false; System.Windows.Application.Current.Shutdown(); }
-    public void Dispose() { SystemEvents.SessionSwitch-=SessionSwitch;clipboardTimer?.Stop();hotkey?.Dispose(); transparencyWindow?.ShutdownTool();menuActivator?.Close(); floatingBall?.Close();tray?.Dispose(); }
+    public void Exit() { transparencyWindow?.ShutdownTool();floatingBall?.Close();searchPalette?.Hide();FileIndex.Dispose();foreach (var w in windows.Values) { w.AllowClose = true; w.Close(); } tray!.Visible = false; System.Windows.Application.Current.Shutdown(); }
+    public void Dispose() { SystemEvents.SessionSwitch-=SessionSwitch;clipboardTimer?.Stop();hotkey?.Dispose(); FileIndex.Dispose();transparencyWindow?.ShutdownTool();menuActivator?.Close(); floatingBall?.Close();tray?.Dispose(); }
 }

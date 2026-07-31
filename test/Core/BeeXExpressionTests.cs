@@ -184,4 +184,40 @@ public class BeeXExpressionTests
         BeeXExpression.TryEvaluate("7/2", out var value).Should().BeTrue();
         value.Should().Be(3.5);
     }
+
+    // ---- 隐式乘法（数字/括号紧邻左括号）----
+
+    [Theory]
+    [InlineData("2(9*8)", 144)]        // 2 * 72
+    [InlineData("1+1/2(9*8)", 37)]     // 1 + (1/2)*72，左到右等优先级
+    [InlineData("(1+2)(3+4)", 21)]     // 3 * 7
+    [InlineData("3(4)", 12)]
+    public void TryEvaluate_ImplicitMultiplicationBeforeParen(string expr, double expected)
+    {
+        BeeXExpression.TryEvaluate(expr, out var value).Should().BeTrue();
+        value.Should().Be(expected);
+    }
+
+    // ---- 全角符号（数字/运算符/括号）与半角等效 ----
+
+    [Theory]
+    [InlineData("１＋２", 3)]
+    [InlineData("２×３", 6)]
+    [InlineData("１０／４", 2.5)]
+    [InlineData("１＋１／２（９＊８）", 37)]   // 全角版用户案例
+    [InlineData("（１＋２）＊３", 9)]
+    [InlineData("１０－２", 8)]              // 全角减号 －
+    public void TryEvaluate_FullWidthSymbols_EquivalentToHalfWidth(string expr, double expected)
+    {
+        BeeXExpression.TryEvaluate(expr, out var value).Should().BeTrue();
+        value.Should().Be(expected);
+    }
+
+    [Fact]
+    public void TryEvaluate_UnicodeMinusSign_Normalized()
+    {
+        // U+2212 数学减号 −
+        BeeXExpression.TryEvaluate("5\u22123", out var value).Should().BeTrue();
+        value.Should().Be(2);
+    }
 }

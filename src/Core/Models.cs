@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 
 namespace BeeX.DeskNest;
+// Launcher 格子已移除（由 Ctrl+Q 統一搜索窗 SearchPaletteWindow 接替）；枚舉成員保留以免數字序列化的舊存檔錯位，Load() 會清除殘留格子
 public enum NestKind { Note, Todo, Folder, ManagedFiles, Capture, Music, Clock, Screenshot, Weather, Tags, SystemMonitor, Deadline, Countdown, Launcher, WorkTimer }
 public sealed class NestModel
 {
@@ -102,7 +103,14 @@ public sealed class AppState
     public int WeatherRefreshMinutes { get; set; } = 30;
     /// <summary>新建待辦的默認提醒提前量（分鐘，0=準時）</summary>
     public List<int> TodoDefaultReminderOffsets { get; set; } = [1440,0];
-    public Dictionary<string,string> Hotkeys { get; set; } = new() { ["Note"]="",["Todo"]="",["MapFolder"]="",["Managed"]="",["CaptureFolder"]="",["QuickNote"]="",["Music"]="",["Clock"]="",["Screenshot"]="Ctrl + Alt + A",["ToggleAll"]="Ctrl + Alt + B",["CollapseAll"]="",["Weather"]="",["PinText"]="Ctrl + Alt + T",["MinimizeTransparent"]="Alt + X",["TranslateScreenshot"]="Ctrl + Alt + Q" };
+    public Dictionary<string,string> Hotkeys { get; set; } = new() { ["Note"]="",["Todo"]="",["MapFolder"]="",["Managed"]="",["CaptureFolder"]="",["QuickNote"]="",["Music"]="",["Clock"]="",["Screenshot"]="Ctrl + Alt + A",["ToggleAll"]="Ctrl + Alt + B",["CollapseAll"]="",["Weather"]="",["PinText"]="Ctrl + Alt + T",["MinimizeTransparent"]="Alt + X",["TranslateScreenshot"]="Ctrl + Alt + Q",["Launcher"]="Ctrl + Q" };
+    /// <summary>Ctrl+Q 統一搜索窗最近一次執行的結果（!! 前綴召回）</summary>
+    public string PaletteLastResult { get; set; } = "";
+    /// <summary>統一搜索窗上次拖動到的位置（null 表示未拖動過，喚起時居中）</summary>
+    public double? PaletteLeft { get; set; }
+    public double? PaletteTop { get; set; }
+    /// <summary>Ctrl+Q 搜索窗空輸入時是否顯示指令指引下拉（熟悉指令的用戶可關閉保持簡約）</summary>
+    public bool ShowSearchPaletteGuide { get; set; } = true;
     public List<string> ToolButtonOrder { get; set; } = [];
     public Dictionary<string,bool> ToolButtonVisibility { get; set; } = [];
     public Dictionary<string,bool> ToolButtonMultiOpen { get; set; } = [];
