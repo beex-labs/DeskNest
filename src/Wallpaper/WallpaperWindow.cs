@@ -1,31 +1,31 @@
+using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
-using System.Windows.Media.Imaging;
 using Microsoft.Web.WebView2.Core;
 using Brushes = System.Windows.Media.Brushes;
-using Stretch = System.Windows.Media.Stretch;
 using Drawing = System.Drawing;
 
 namespace BeeX.DeskNest;
 
 /// <summary>
-/// A borderless render surface for one monitor that is hosted on the desktop background layer. It shows a video
-/// (looped, hardware-decoded), a still image, or a web page (WebView2: built-in shaders, scenes and imported HTML
-/// wallpapers). The frame rate is driven externally by the governor: a target of 0 pauses playback (and suspends the
-/// browser process) to save power.
+/// A borderless render surface for one monitor that is hosted on the desktop background layer. Every wallpaper kind
+/// (video, image, web page, shader, scene) renders through WebView2: a WPF window reparented under the shell's
+/// desktop host no longer presents its own D3D-composed content, so native WPF controls (MediaElement/Image) stay
+/// blank, while WebView2 (own child HWND pipeline) renders fine. The frame rate is driven externally by the
+/// governor: a target of 0 pauses playback (and suspends the browser process) to save power.
 /// </summary>
 public sealed class WallpaperWindow : Window
 {
-    readonly MediaElement media = new() { LoadedBehavior = MediaState.Manual, UnloadedBehavior = MediaState.Manual, Stretch = Stretch.UniformToFill, ScrubbingEnabled = false };
-    readonly System.Windows.Controls.Image image = new() { Stretch = Stretch.UniformToFill };
     readonly Grid root = new() { ClipToBounds = true };
     Microsoft.Web.WebView2.Wpf.WebView2? web;
     readonly WallpaperRuntimeBridge bridge = new();
     bool webSuspended;
     WallpaperItem? current;
     double globalVolume;
+    double lastPostedVolume = -1;
+    bool muted;
     int targetFps = 60;
 
     public string DeviceName { get; }
@@ -33,8 +33,8 @@ public sealed class WallpaperWindow : Window
     public IntPtr Handle => new WindowInteropHelper(this).Handle;
     /// <summary>The wallpaper currently shown on this surface (used by the service to route audio/pointer data).</summary>
     public WallpaperItem? Current => current;
-    /// <summary>True when this surface renders through WebView2 (web, shader or scene wallpapers).</summary>
-    public bool IsWebSurface => current is { Kind: WallpaperKind.Web or WallpaperKind.Shader or WallpaperKind.Scene };
+    /// <summary>True while a wallpaper is assigned: every kind renders through the WebView2 surface.</summary>
+    public bool IsWebSurface => current != null;
 
     public WallpaperWindow(string deviceName, Drawing.Rectangle screenPhysical)
     {
@@ -50,10 +50,6 @@ public sealed class WallpaperWindow : Window
         WindowStartupLocation = WindowStartupLocation.Manual;
         // Start off-screen with a placeholder size; the real geometry is applied in physical pixels after attaching.
         Left = -32000; Top = -32000; Width = 320; Height = 200;
-        media.MediaEnded += (_, _) => { try { media.Position = TimeSpan.Zero; media.Play(); } catch { } };
-        media.MediaFailed += (_, _) => { };
-        root.Children.Add(image);
-        root.Children.Add(media);
         Content = root;
         SourceInitialized += (_, _) => WindowRegionHelper.HideFromAltTab(this);
     }
@@ -73,7 +69,7 @@ public sealed class WallpaperWindow : Window
         DesktopWallpaperHost.MoveToMonitor(Handle, ScreenPhysical);
     }
 
-    /// <summary>Switches the displayed wallpaper: video/image render natively, web kinds spin up the web runtime.</summary>
+    /// <summary>Switches the displayed wallpaper; all kinds are rendered by the web runtime.</summary>
     public void SetWallpaper(WallpaperItem? item, double globalVolume)
     {
         this.globalVolume = globalVolume;
@@ -87,35 +83,7 @@ public sealed class WallpaperWindow : Window
                 ClearContent();
                 return;
             }
-            if (item.Kind == WallpaperKind.Video)
-            {
-                HideWeb();
-                image.Source = null;
-                image.Visibility = Visibility.Collapsed;
-                media.Visibility = Visibility.Visible;
-                media.SpeedRatio = Math.Clamp(item.PlaybackRate <= 0 ? 1 : item.PlaybackRate, 0.25, 4);
-                media.Source = new Uri(item.Path);
-                ApplyVolume();
-                if (targetFps > 0) media.Play();
-            }
-            else if (item.Kind == WallpaperKind.Image)
-            {
-                HideWeb();
-                media.Stop();
-                media.Source = null;
-                media.Visibility = Visibility.Collapsed;
-                image.Source = LoadImage(item.Path);
-                image.Visibility = Visibility.Visible;
-            }
-            else
-            {
-                media.Stop();
-                media.Source = null;
-                media.Visibility = Visibility.Collapsed;
-                image.Source = null;
-                image.Visibility = Visibility.Collapsed;
-                _ = ShowWebAsync(item);
-            }
+            _ = ShowWebAsync(item);
         }
         catch { ClearContent(); }
     }
@@ -146,6 +114,9 @@ public sealed class WallpaperWindow : Window
                 {
                     bridge.PostMonitor(ScreenPhysical.Width, ScreenPhysical.Height, 1.0);
                     bridge.PostFps(targetFps);
+                    lastPostedVolume = EffectiveVolume();
+                    bridge.PostVolume(lastPostedVolume);
+                    bridge.PostMute(muted);
                     if (current?.Props is { Count: > 0 } props) bridge.PostProps(props);
                 });
             }
@@ -177,6 +148,14 @@ public sealed class WallpaperWindow : Window
         if (item.Kind == WallpaperKind.Scene) return "https://wallpaper.beex/scene.html?scene=https://item.beex/scene.json";
         if (item.Path.Equals("builtin:particles", StringComparison.OrdinalIgnoreCase)) return "https://wallpaper.beex/builtin/particles.html";
         if (item.Path.StartsWith("builtin:", StringComparison.OrdinalIgnoreCase) || item.Kind == WallpaperKind.Shader) return "https://wallpaper.beex/builtin/shader.html";
+        if (item.Kind is WallpaperKind.Image or WallpaperKind.Video)
+        {
+            // Imported media plays through media.html (fullscreen img / looping video element).
+            var mediaUrl = "https://item.beex/" + Uri.EscapeDataString(Path.GetFileName(item.Path));
+            var kind = item.Kind == WallpaperKind.Video ? "video" : "image";
+            var rate = (item.PlaybackRate <= 0 ? 1 : item.PlaybackRate).ToString("0.###", CultureInfo.InvariantCulture);
+            return $"https://wallpaper.beex/media.html?kind={kind}&src={Uri.EscapeDataString(mediaUrl)}&rate={rate}";
+        }
         return "https://item.beex/" + Uri.EscapeDataString(Path.GetFileName(item.Path));
     }
 
@@ -211,16 +190,6 @@ public sealed class WallpaperWindow : Window
     {
         var previous = targetFps;
         targetFps = fps;
-        if (current?.Kind == WallpaperKind.Video)
-        {
-            try
-            {
-                if (fps <= 0) media.Pause();
-                else media.Play();
-            }
-            catch { }
-            return;
-        }
         if (!IsWebSurface || web?.CoreWebView2 == null) return;
         try
         {
@@ -247,6 +216,8 @@ public sealed class WallpaperWindow : Window
         catch { }
     }
 
+    double EffectiveVolume() => Math.Clamp((current?.Volume ?? 0) * Math.Clamp(globalVolume, 0, 1), 0, 1);
+
     /// <summary>Updates the master volume applied on top of the per-item volume.</summary>
     public void SetGlobalVolume(double volume)
     {
@@ -255,42 +226,29 @@ public sealed class WallpaperWindow : Window
     }
 
     /// <summary>Mutes or restores the wallpaper audio (used when a fullscreen app takes over).</summary>
-    public void SetMuted(bool muted)
+    public void SetMuted(bool value)
     {
-        try { media.IsMuted = muted; } catch { }
+        if (muted == value) return;
+        muted = value;
+        try { bridge.PostMute(value); } catch { }
     }
 
     void ApplyVolume()
     {
-        var itemVolume = current?.Volume ?? 0;
-        try { media.Volume = Math.Clamp(itemVolume * Math.Clamp(globalVolume, 0, 1), 0, 1); } catch { }
+        var effective = EffectiveVolume();
+        if (Math.Abs(effective - lastPostedVolume) < 0.0001) return;
+        lastPostedVolume = effective;
+        try { bridge.PostVolume(effective); } catch { }
     }
 
     void ClearContent()
     {
-        try { media.Stop(); } catch { }
-        media.Source = null;
-        media.Visibility = Visibility.Collapsed;
-        image.Source = null;
-        image.Visibility = Visibility.Collapsed;
         HideWeb();
-    }
-
-    static BitmapImage LoadImage(string path)
-    {
-        var bmp = new BitmapImage();
-        bmp.BeginInit();
-        bmp.CacheOption = BitmapCacheOption.OnLoad;
-        bmp.UriSource = new Uri(path);
-        bmp.EndInit();
-        bmp.Freeze();
-        return bmp;
     }
 
     protected override void OnClosed(EventArgs e)
     {
         try { DesktopWallpaperHost.Detach(Handle); } catch { }
-        try { media.Stop(); media.Close(); } catch { }
         try { web?.Dispose(); } catch { }
         web = null;
         base.OnClosed(e);

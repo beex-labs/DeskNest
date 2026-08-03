@@ -3,7 +3,8 @@ using System.Text.Json.Serialization;
 namespace BeeX.DeskNest;
 // The Launcher widget has been removed (replaced by the Ctrl+Q unified search window, SearchPaletteWindow); the enum member is kept so numeric serialization of old saves does not shift, and Load() clears leftover widgets
 public enum NestKind { Note, Todo, Folder, ManagedFiles, Capture, Music, Clock, Screenshot, Weather, Tags, SystemMonitor, Deadline, Countdown, Launcher, WorkTimer }
-// Render backend selected per wallpaper: Video/Image use MediaElement, Web/Shader/Scene use WebView2.
+// Render backend: ALL kinds render through WebView2 (media.html hosts imported video/image) because native WPF
+// rendering does not present in a wallpaper window reparented under the shell's desktop host.
 public enum WallpaperKind { Video, Image, Web, Shader, Scene }
 public sealed class NestModel
 {

@@ -9,13 +9,15 @@
 (function () {
   if (window.BeeXWallpaper) return; // idempotent (page may include it AND host injects it)
 
-  const cbs = { time: [], audio: [], pointer: [], resize: [], pause: [], resume: [], property: [] };
+  const cbs = { time: [], audio: [], pointer: [], resize: [], pause: [], resume: [], property: [], volume: [], mute: [] };
   let fps = 60, paused = false, t = 0, last = -1;
 
   const api = {
     audio: { bands: new Float32Array(64), beat: false, level: 0 },
     pointer: { x: 0.5, y: 0.5, down: false },
     monitor: { width: innerWidth, height: innerHeight, dpi: 1 },
+    volume: 1,
+    muted: false,
     get fps() { return fps; },
     get paused() { return paused; },
     onTime(f) { cbs.time.push(f); },
@@ -25,6 +27,8 @@
     onPause(f) { cbs.pause.push(f); },
     onResume(f) { cbs.resume.push(f); },
     onProperty(f) { cbs.property.push(f); },
+    onVolume(f) { cbs.volume.push(f); },
+    onMuted(f) { cbs.mute.push(f); },
   };
   window.BeeXWallpaper = api;
 
@@ -90,6 +94,14 @@
       case 'monitor':
         api.monitor = { width: m.width | 0, height: m.height | 0, dpi: +m.dpi || 1 };
         for (const f of cbs.resize) { try { f(api.monitor.width, api.monitor.height, api.monitor.dpi); } catch (e2) { } }
+        break;
+      case 'volume':
+        api.volume = Math.min(1, Math.max(0, +m.value || 0));
+        for (const f of cbs.volume) { try { f(api.volume); } catch (e2) { } }
+        break;
+      case 'mute':
+        api.muted = !!m.value;
+        for (const f of cbs.mute) { try { f(api.muted); } catch (e2) { } }
         break;
       case 'props': if (m.map) dispatchProps(m.map); break;
     }

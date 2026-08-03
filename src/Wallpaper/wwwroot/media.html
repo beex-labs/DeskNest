@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>BeeX Media Wallpaper</title>
+<style>
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}
+img,video{position:fixed;inset:0;width:100vw;height:100vh;object-fit:cover;display:block}
+</style>
+</head>
+<body>
+<script src="runtime.js"></script>
+<script>
+// Image/video wallpaper host: renders imported media through WebView2 because native WPF
+// rendering (MediaElement/Image) does not present in a window reparented under the shell's
+// desktop host. Sizing matches WPF Stretch.UniformToFill (object-fit: cover).
+const q = new URLSearchParams(location.search);
+const kind = (q.get('kind') || 'image').toLowerCase();
+const src = q.get('src') || '';
+const rate = Math.min(4, Math.max(0.25, parseFloat(q.get('rate')) || 1));
+const W = window.BeeXWallpaper;
+
+let video = null;
+if (kind === 'video') {
+  video = document.createElement('video');
+  video.src = src;
+  video.autoplay = true;
+  video.loop = true;
+  video.muted = true;          // start silent; real volume arrives with the host's volume message
+  video.playsInline = true;
+  video.playbackRate = rate;
+  document.body.appendChild(video);
+} else {
+  const img = document.createElement('img');
+  img.src = src;
+  img.alt = '';
+  document.body.appendChild(img);
+}
+
+function applyVolume() {
+  if (!video) return;
+  const v = Math.min(1, Math.max(0, W.muted ? 0 : W.volume));
+  video.muted = v <= 0;
+  video.volume = v;
+}
+
+if (video) {
+  // Governor pause: stop decoding entirely; resume continues where we left off.
+  W.onPause(() => { try { video.pause(); } catch (e) { } });
+  W.onResume(() => { try { video.play(); } catch (e) { } });
+  W.onVolume(applyVolume);
+  W.onMuted(applyVolume);
+  applyVolume();
+}
+</script>
+</body>
+</html>

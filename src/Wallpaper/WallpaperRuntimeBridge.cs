@@ -45,6 +45,10 @@ sealed class WallpaperRuntimeBridge
     public void PostPointer(double x, double y, bool down) => Post(new { type = "pointer", x, y, down });
     public void PostMonitor(int width, int height, double dpi) => Post(new { type = "monitor", width, height, dpi });
     public void PostProps(Dictionary<string, string> map) => Post(new { type = "props", map });
+    /// <summary>Effective playback volume 0..1 (video wallpapers).</summary>
+    public void PostVolume(double value) => Post(new { type = "volume", value });
+    /// <summary>Temporary mute state (fullscreen-app rule).</summary>
+    public void PostMute(bool muted) => Post(new { type = "mute", value = muted });
     public void Post(object message)
     {
         try { core?.PostWebMessageAsJson(JsonSerializer.Serialize(message)); } catch { }

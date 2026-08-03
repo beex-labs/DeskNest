@@ -11,7 +11,10 @@ namespace BeeX.DeskNest;
 /// </summary>
 static class DesktopWallpaperHost
 {
+    const int GwlStyle = -16;
     const int GwlExStyle = -20;
+    const long WsChild = 0x40000000L;
+    const long WsPopup = 0x80000000L;
     const long WsExTransparent = 0x00000020L;
     const long WsExToolWindow = 0x00000080L;
     const long WsExAppWindow = 0x00040000L;
@@ -21,6 +24,8 @@ static class DesktopWallpaperHost
     const int SmYVirtualScreen = 77;
     const uint SwpNoActivate = 0x0010;
     const uint SwpNoZOrder = 0x0004;
+    const uint SwpNoMove = 0x0002;
+    const uint SwpNoSize = 0x0001;
     const uint SwpShowWindow = 0x0040;
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr FindWindow(string? className, string? windowName);
@@ -30,6 +35,7 @@ static class DesktopWallpaperHost
     [DllImport("user32.dll")] static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
     [DllImport("user32.dll")] static extern IntPtr SetParent(IntPtr child, IntPtr newParent);
     [DllImport("user32.dll")] static extern bool IsWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hWnd);
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int index);
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")] static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int index, IntPtr value);
     [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr hWnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
@@ -46,21 +52,21 @@ static class DesktopWallpaperHost
         // Undocumented request that makes the shell split off a background host window behind the icon layer.
         SendMessageTimeout(progman, 0x052C, (IntPtr)0xD, (IntPtr)0x1, SmtoNormal, 1000, out _);
 
-        // Win11 24H2+: the icon view stays inside Progman and the spawned WorkerW is a Progman child placed
-        // behind it, so that child is the background host. Older builds never parent a WorkerW under Progman.
-        var childWorker = FindWindowEx(progman, IntPtr.Zero, "WorkerW", null);
-        if (childWorker != IntPtr.Zero) return childWorker;
-
+        // Pre-24H2: the spawned background host is a TOP-LEVEL WorkerW sibling that follows the window owning the
+        // icon view (SHELLDLL_DefView); a surface parented under it shows through the transparent icon view.
         var host = IntPtr.Zero;
         EnumWindows((top, _) =>
         {
-            // Pre-24H2: the background host is the sibling that follows the window owning the icon view (SHELLDLL_DefView).
             if (FindWindowEx(top, IntPtr.Zero, "SHELLDLL_DefView", null) != IntPtr.Zero)
                 host = FindWindowEx(IntPtr.Zero, top, "WorkerW", null);
             return true;
         }, IntPtr.Zero);
+        if (host != IntPtr.Zero && IsWindowVisible(host)) return host;
 
-        return host != IntPtr.Zero ? host : progman;
+        // Win11 24H2+: the icon view is a direct child of Progman and the spawned WorkerW is only a hidden helper
+        // child of Progman — a surface parented under it never becomes visible. The visible background band is
+        // Progman itself: a child of Progman renders below the icon view and above the static wallpaper.
+        return progman;
     }
 
     /// <summary>
@@ -73,7 +79,17 @@ static class DesktopWallpaperHost
         var host = EnsureBackgroundHost();
         if (host == IntPtr.Zero) return false;
         ApplyBackgroundStyles(renderWindow, clickThrough);
-        SetParent(renderWindow, host);
+        // MSDN: SetParent does not modify WS_CHILD/WS_POPUP. An overlapped top-level window reparented to a
+        // non-desktop window silently keeps its top-level state (GetParent returns 0) and never lands on the
+        // desktop layer, so convert it to a proper child window BEFORE reparenting.
+        var style = GetWindowLongPtr(renderWindow, GwlStyle).ToInt64();
+        style = (style & ~WsPopup) | WsChild;
+        SetWindowLongPtr(renderWindow, GwlStyle, new IntPtr(style));
+        if (SetParent(renderWindow, host) == IntPtr.Zero) return false;
+        // When hosted on Progman (24H2), keep the surface directly below the icon view so desktop icons stay on top.
+        var defView = FindWindowEx(host, IntPtr.Zero, "SHELLDLL_DefView", null);
+        if (defView != IntPtr.Zero)
+            SetWindowPos(renderWindow, defView, 0, 0, 0, 0, SwpNoActivate | SwpNoMove | SwpNoSize);
         return true;
     }
 
